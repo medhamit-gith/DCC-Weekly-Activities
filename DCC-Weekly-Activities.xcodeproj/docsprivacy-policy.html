@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — DCC Weekly Activities</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           max-width: 720px; margin: 40px auto; padding: 0 20px;
+           color: #1c1c1e; line-height: 1.7; }
+    h1   { font-size: 2rem; margin-bottom: 4px; }
+    h2   { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid #e5e5ea; padding-bottom: 4px; }
+    p, li { font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { text-align: left; padding: 8px 12px; border: 1px solid #e5e5ea; font-size: 0.9rem; }
+    th { background: #f2f2f7; }
+    .subtitle { color: #636366; font-size: 0.9rem; margin-bottom: 2rem; }
+    a { color: #007aff; }
+  </style>
+</head>
+<body>
+
+<h1>Privacy Policy</h1>
+<p class="subtitle">DCC Weekly Activities &nbsp;·&nbsp; Last updated: February 17, 2026</p>
+
+<h2>Introduction</h2>
+<p>DCC Weekly Activities ("the App") helps members of the Desi Cycling Club view and compare weekly ride statistics sourced from Strava. This policy explains exactly what data we handle, why, and how.</p>
+
+<h2>Data We Collect</h2>
+<ul>
+  <li><strong>Club activity data</strong> — ride names, distances, speeds, elevation, and moving time fetched from the Strava API on your behalf.</li>
+  <li><strong>Your first and last name</strong> — as returned by Strava, used solely to attribute rides in the leaderboard.</li>
+  <li><strong>Strava OAuth access token</strong> — stored encrypted in the iOS Keychain on your device. Never transmitted to our servers.</li>
+  <li><strong>Biometric data</strong> — Face ID / Touch ID authentication is processed entirely on-device by Apple's Secure Enclave. We never receive or store biometric data.</li>
+</ul>
+
+<h2>Data We Do NOT Collect</h2>
+<ul>
+  <li>Location data</li>
+  <li>Health or fitness data beyond what Strava exposes for club activities</li>
+  <li>Contacts, photos, or any other device data</li>
+  <li>Advertising identifiers</li>
+  <li>Analytics or crash-reporting data sent to third parties</li>
+</ul>
+
+<h2>How We Use Your Data</h2>
+<ol>
+  <li><strong>Display club statistics</strong> — render weekly summaries, rankings, and charts inside the app.</li>
+  <li><strong>Authenticate you</strong> — exchange your Strava authorisation code for an access token via our secure proxy (a Cloudflare Worker). The proxy holds the Strava client secret; your device never sees it.</li>
+  <li><strong>Protect the app</strong> — biometric authentication prevents unauthorised access to your Strava token on a shared device.</li>
+</ol>
+
+<h2>Data Storage</h2>
+<p>All activity data is stored <strong>locally on your device only</strong>. We operate a token-exchange proxy (Cloudflare Worker) that receives your one-time authorisation code, calls Strava, and returns your access token. The proxy does not log or persist any data.</p>
+
+<h2>Third-Party Services</h2>
+<p>The app communicates with:</p>
+<ul>
+  <li><strong>Strava API</strong> — to fetch club activities. Strava's <a href="https://www.strava.com/legal/privacy">Privacy Policy</a> and <a href="https://www.strava.com/legal/api">API Agreement</a> apply to their service.</li>
+  <li><strong>Cloudflare Workers</strong> — our token-exchange proxy. No personal data is stored. <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare Privacy Policy</a>.</li>
+</ul>
+<p>We do not use advertising networks, analytics SDKs, or any other third-party services.</p>
+
+<h2>Data Retention &amp; Deletion</h2>
+<p>Activity data is refreshed each time you open the app and is only held in memory during the session. The Strava access token persists in the iOS Keychain until you log out.</p>
+<p>To delete all data:</p>
+<ol>
+  <li>Tap <strong>Log Out</strong> inside the app — this removes the Keychain token and clears all cached data.</li>
+  <li>Delete the app from your device.</li>
+  <li>Revoke the app's access in <strong>Strava → Settings → My Apps</strong>.</li>
+</ol>
+
+<h2>Children's Privacy</h2>
+<p>The App is not directed at children under 13 and we do not knowingly collect data from them.</p>
+
+<h2>Your Rights</h2>
+<p>You may access your data through the app at any time, and delete it as described above. For GDPR or CCPA requests please contact us at the email below.</p>
+
+<h2>Changes to This Policy</h2>
+<p>We will update the "Last updated" date above if this policy changes. Significant changes will be noted in the App Store release notes.</p>
+
+<h2>Contact</h2>
+<p>Questions or requests: <a href="mailto:support@desicyclingclub.com">support@desicyclingclub.com</a></p>
+
+<h2>Data Summary</h2>
+<table>
+  <thead>
+    <tr><th>Data</th><th>Purpose</th><th>Stored where</th><th>Shared with</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Club activity stats</td><td>Display leaderboard</td><td>Device memory (session only)</td><td>Nobody</td></tr>
+    <tr><td>Member first &amp; last name</td><td>Label rides</td><td>Device memory (session only)</td><td>Nobody</td></tr>
+    <tr><td>Strava access token</td><td>API authentication</td><td>iOS Keychain (encrypted)</td><td>Strava API only</td></tr>
+    <tr><td>Biometric data</td><td>App security</td><td>Apple Secure Enclave</td><td>Nobody</td></tr>
+  </tbody>
+</table>
+
+<p style="margin-top:3rem; color:#636366; font-size:0.85rem;">
+  Powered by Strava. DCC Weekly Activities is not affiliated with Strava, Inc.
+</p>
+
+</body>
+</html>

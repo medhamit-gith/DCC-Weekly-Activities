@@ -4,6 +4,10 @@
 //
 //  Reusable Liquid Glass components for the app
 //
+//  VERSION HISTORY:
+//  2026-02-24: [ICON] Replaced non-cycling activity icons (run/walk/swim) with
+//              figure.outdoor.cycle. Updated welcome screen icon to cycling symbol.
+//
 
 import SwiftUI
 
@@ -15,17 +19,17 @@ struct GlassMemberCard: View {
         HStack(spacing: 16) {
             // Member info
             VStack(alignment: .leading, spacing: 4) {
-                Text(member.name)
+                Text(member.memberName)
                     .font(.headline)
                     .foregroundStyle(.primary)
                 
                 HStack(spacing: 12) {
-                    Label("\(member.count)", systemImage: "figure.run")
+                    Label("\(member.totalRides)", systemImage: "figure.run")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
-                    if member.averageSpeed > 0 {
-                        Label(member.formattedAverageSpeed, systemImage: "speedometer")
+                    if member.avgSpeed > 0 {
+                        Label(String(format: "%.1f km/h", member.avgSpeed), systemImage: "speedometer")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -36,7 +40,7 @@ struct GlassMemberCard: View {
             
             // Distance (prominent)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(member.formattedDistance)
+                Text(String(format: "%.1f", member.totalKM))
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.dccSaffron)
@@ -56,7 +60,14 @@ struct GlassMemberCard: View {
 
 // MARK: - Glass Activity Row
 struct GlassActivityRow: View {
-    let activity: ClubActivity
+    let activity: Activity
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .short
+        f.timeStyle = .none
+        return f
+    }()
     
     var body: some View {
         HStack(spacing: 12) {
@@ -84,12 +95,12 @@ struct GlassActivityRow: View {
             
             // Distance and date
             VStack(alignment: .trailing, spacing: 4) {
-                Text(activity.formattedDistance)
+                Text(String(format: "%.1f km", activity.distance))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.dccSaffron)
                 
-                Text(activity.formattedDate)
+                Text(Self.dateFormatter.string(from: activity.date))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -106,13 +117,13 @@ struct GlassActivityRow: View {
         case "ride":
             return "bicycle"
         case "run":
-            return "figure.run"
+            return "figure.outdoor.cycle"
         case "walk":
-            return "figure.walk"
+            return "figure.outdoor.cycle"
         case "swim":
-            return "figure.pool.swim"
+            return "figure.outdoor.cycle"
         default:
-            return "figure.mixed.cardio"
+            return "figure.outdoor.cycle"
         }
     }
 }
@@ -269,12 +280,13 @@ struct GlassLoadingView: View {
 struct GlassWelcomeCard: View {
     let onConnect: () -> Void
     let biometricType: BiometricAuth.BiometricType
+    let isAuthenticating: Bool
     
     var body: some View {
         VStack(spacing: 24) {
             // Logo/Icon area
             VStack(spacing: 12) {
-                Image(systemName: "figure.run.circle.fill")
+                Image(systemName: "figure.outdoor.cycle")
                     .font(.system(size: 80))
                     .foregroundStyle(
                         LinearGradient(
@@ -295,14 +307,31 @@ struct GlassWelcomeCard: View {
             }
             
             // Connect button
-            Button(action: onConnect) {
+            Button(action: {
+                #if DEBUG
+                print("🎯 [UI] Connect button tapped")
+                #endif
+                onConnect()
+                #if DEBUG
+                print("✅ [UI] onConnect() called")
+                #endif
+            }) {
                 HStack {
-                    Image(systemName: "person.fill")
-                    Text("Connect with Strava")
-                        .fontWeight(.semibold)
+                    if isAuthenticating {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Connecting...")
+                            .fontWeight(.semibold)
+                    } else {
+                        Image(systemName: "person.fill")
+                        Text("Connect with Strava")
+                            .fontWeight(.semibold)
+                    }
                 }
                 .frame(maxWidth: .infinity)
             }
+            .disabled(isAuthenticating)
+            .opacity(isAuthenticating ? 0.6 : 1.0)
             .buttonStyle(.dccGlass(tintColor: Color.dccSaffron, isProminent: true))
             
             // Biometric info

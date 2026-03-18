@@ -5,6 +5,7 @@
 //  Centralized error handling for production
 //
 
+import Combine
 import Foundation
 import SwiftUI
 
@@ -237,7 +238,10 @@ extension View {
     func errorAlert(errorHandler: ErrorHandler, retryAction: (() -> Void)? = nil) -> some View {
         alert(
             "Error",
-            isPresented: errorHandler.$showError,
+            isPresented: Binding(
+                get: { errorHandler.showError },
+                set: { errorHandler.showError = $0 }
+            ),
             presenting: errorHandler.currentError
         ) { error in
             if let retry = retryAction {
@@ -278,7 +282,11 @@ extension Result {
 #Preview("Network Error") {
     ErrorView(
         error: .networkUnavailable,
-        retryAction: { print("Retry tapped") }
+        retryAction: {
+            #if DEBUG
+            print("Retry tapped")
+            #endif
+        }
     )
 }
 
@@ -292,6 +300,10 @@ extension Result {
 #Preview("No Data") {
     ErrorView(
         error: .noData,
-        retryAction: { print("Retry tapped") }
+        retryAction: {
+            #if DEBUG
+            print("Retry tapped")
+            #endif
+        }
     )
 }
