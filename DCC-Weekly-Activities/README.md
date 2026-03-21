@@ -12,6 +12,7 @@
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
+  <a href="#screen-reference">Screens</a> •
   <a href="#development">Development</a> •
   <a href="#app-store">App Store</a>
 </p>
@@ -166,7 +167,87 @@
 
 ---
 
+## 🗺 Screen Reference Guide
+
+Use these standardized screen names when discussing features, filing issues, or developing:
+
+### Authentication Flow
+- **`LoginScreen`** - Initial Strava OAuth connection screen
+- **`BiometricGateScreen`** - Face ID/Touch ID authentication gate
+- **`WebAuthScreen`** - Strava authorization web view (in-app browser)
+
+### Main Dashboard (iOS/iPadOS)
+- **`DashboardScreen`** - Main container with tab navigation
+  - **`ChartsTab`** - Visual statistics with bar/pie charts
+  - **`TableTab`** - Sortable data table view
+  - **`ActivitiesTab`** - Chronological activity list
+
+### Detail Views
+- **`ActivityDetailScreen`** - Individual activity details
+- **`MemberDetailScreen`** - Single member's complete stats
+- **`ExpandedLeaderboardScreen`** - Full member list beyond top 10
+
+### State/Utility Screens
+- **`LoadingScreen`** - Data fetch loading state with glass effect
+- **`ErrorScreen`** - Error display with retry options
+- **`EmptyStateScreen`** - No activities available message
+
+### tvOS Screens
+- **`TVDashboardScreen`** - Apple TV main display
+- **`TVChartsScreen`** - TV-optimized charts view
+- **`TVTableScreen`** - TV-optimized table view
+
+### Modal/Overlay Views
+- **`WelcomeCard`** - First-time user welcome overlay
+- **`RefreshIndicator`** - Pull-to-refresh loading indicator
+- **`BiometricPrompt`** - System biometric auth dialog
+
+### Example Usage
+
+```markdown
+**Issue**: Charts not updating after refresh
+**Screen**: `ChartsTab` on `DashboardScreen`
+**Steps**: 
+1. Open app to `DashboardScreen`
+2. Navigate to `ChartsTab`
+3. Pull to refresh
+4. Charts remain showing old data
+
+**Feature Request**: Add filtering by activity type
+**Screen**: `ActivitiesTab`
+**Description**: Allow users to filter activities by Run/Ride/Walk on the `ActivitiesTab`
+```
+
+### Screen Flow Diagram
+
+```
+LoginScreen 
+    ↓ (auth success)
+BiometricGateScreen (if enabled)
+    ↓ (auth success)
+DashboardScreen
+    ├── ChartsTab → ActivityDetailScreen
+    ├── TableTab → MemberDetailScreen
+    └── ActivitiesTab → ActivityDetailScreen
+```
+
+---
+
 ## 🛠 Development
+
+### Screen Reference
+
+Before starting development, familiarize yourself with our standardized screen names:
+
+- **[SCREEN_REFERENCE.md](SCREEN_REFERENCE.md)** - Complete screen guide with flows and examples
+- **[SCREEN_QUICK_REF.md](SCREEN_QUICK_REF.md)** - Quick reference card (print-friendly)
+
+Use these names consistently in:
+- Code comments
+- Git commit messages
+- Issue reports
+- Pull requests
+- Documentation
 
 ### Project Structure
 

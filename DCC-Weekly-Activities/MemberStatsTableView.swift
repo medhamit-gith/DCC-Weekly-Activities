@@ -2,207 +2,112 @@
 //  MemberStatsTableView.swift
 //  DCC-Weekly-Activities
 //
-//  Table view displaying member statistics
+//  Simple table view for displaying member statistics.
+//  Used in the original/legacy dashboard view.
 //
 
 import SwiftUI
 
 struct MemberStatsTableView: View {
     let stats: [MemberStats]
-    @State private var sortOrder: SortOrder = .totalKM
-    @State private var isAscending = false
-    
-    enum SortOrder: String, CaseIterable {
-        case name = "Name"
-        case totalKM = "Total KM"
-        case totalRides = "Rides"
-        case avgSpeed = "Avg Speed"
-        case elevation = "Elevation"
-        
-        var icon: String {
-            switch self {
-            case .name: return "person.fill"
-            case .totalKM: return "road.lanes"
-            case .totalRides: return "number"
-            case .avgSpeed: return "speedometer"
-            case .elevation: return "mountain.2.fill"
-            }
-        }
-    }
-    
-    var sortedStats: [MemberStats] {
-        let sorted = stats.sorted { stat1, stat2 in
-            let comparison: Bool
-            switch sortOrder {
-            case .name:
-                comparison = stat1.memberName < stat2.memberName
-            case .totalKM:
-                comparison = stat1.totalKM > stat2.totalKM
-            case .totalRides:
-                comparison = stat1.totalRides > stat2.totalRides
-            case .avgSpeed:
-                comparison = stat1.avgSpeed > stat2.avgSpeed
-            case .elevation:
-                comparison = stat1.totalElevation > stat2.totalElevation
-            }
-            return isAscending ? !comparison : comparison
-        }
-        return sorted
-    }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Sort controls
-            HStack {
-                Text("Sort by:")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                
-                Picker("Sort", selection: $sortOrder) {
-                    ForEach(SortOrder.allCases, id: \.self) { order in
-                        Label(order.rawValue, systemImage: order.icon)
-                            .tag(order)
+        Group {
+            if stats.isEmpty {
+                EmptyStateView(
+                    icon: "figure.outdoor.cycle",
+                    title: "No Activities Yet",
+                    message: "Activity data will appear here once members log their rides"
+                )
+                .padding()
+            } else {
+                List {
+                    ForEach(Array(stats.enumerated()), id: \.element.id) { index, stat in
+                        MemberStatRow(rank: index + 1, stat: stat)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     }
                 }
-                .pickerStyle(.menu)
-                
-                Button {
-                    isAscending.toggle()
-                } label: {
-                    Image(systemName: isAscending ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                        .foregroundStyle(.blue)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            
-            Divider()
-            
-            // Table header
-            HStack {
-                Text("Member")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                
-                Text("Trend")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(width: 40)
-                
-                Text("Rides")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(width: 50)
-                
-                Text("KM")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(width: 60, alignment: .trailing)
-                
-                Text("Avg Spd")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(width: 60, alignment: .trailing)
-                
-                Text("Elev")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .frame(width: 60, alignment: .trailing)
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.systemGray6))
-            
-            // Table rows
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(sortedStats) { stat in
-                        MemberStatsRow(stat: stat)
-                        Divider()
-                    }
-                }
+                .listStyle(.plain)
             }
         }
+        .background(DCCColors.background.ignoresSafeArea())
     }
 }
 
-struct MemberStatsRow: View {
+struct MemberStatRow: View {
+    let rank: Int
     let stat: MemberStats
     
-    var trendColor: Color {
-        switch stat.currentWeekTrend {
-        case .up: return .green
-        case .down: return .red
-        case .stable: return .gray
-        case .new: return .orange
+    var rankColor: Color {
+        switch rank {
+        case 1: return DCCColors.gold    // #B8860B — 3.9:1 on white, AA Large
+        case 2: return DCCColors.silver  // #6B7280 — 4.6:1 on white, AA
+        case 3: return DCCColors.bronze  // #92400E — 7.1:1 on white, AAA
+        default: return Color.textSecondary
         }
     }
     
     var body: some View {
-        HStack {
-            Text(stat.memberName)
-                .font(.subheadline)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 12) {
+            // Rank badge
+            ZStack {
+                Circle()
+                    .fill(rank <= 3 ? rankColor.opacity(0.2) : Color.surfaceElevated)
+                    .frame(width: 40, height: 40)
+                
+                Text("\(rank)")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(rankColor)
+            }
             
-            Text(stat.trendEmoji)
-                .font(.title3)
-                .foregroundStyle(trendColor)
-                .frame(width: 40)
+            // Member info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(stat.memberName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                
+                HStack(spacing: 12) {
+                    Label("\(stat.totalRides)", systemImage: "flag.checkered")
+                        .font(.caption)
+                        .foregroundStyle(DCCColors.textSecondary)
+
+                    Label(String(format: "%.0f m", stat.totalElevation), systemImage: "mountain.2.fill")
+                        .font(.caption)
+                        .foregroundStyle(DCCColors.textSecondary)
+                }
+            }
             
-            Text("\(stat.totalRides)")
-                .font(.subheadline)
-                .frame(width: 50)
+            Spacer()
             
-            Text(String(format: "%.1f", stat.totalKM))
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .frame(width: 60, alignment: .trailing)
-            
-            Text(String(format: "%.1f", stat.avgSpeed))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .trailing)
-            
-            Text(String(format: "%.0f", stat.totalElevation))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .trailing)
+            // Distance
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(String(format: "%.1f", stat.totalKM))
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.dccSaffron)
+                    .monospacedDigit()
+                
+                Text("km")
+                    .font(.caption2)
+                    .foregroundStyle(DCCColors.textSecondary)
+            }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
+        .padding(.vertical, 4)
+        .background(Color.surface.opacity(0.5))
+        .cornerRadius(12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rowAccessibilityLabel)
+    }
+
+    private var rowAccessibilityLabel: String {
+        let rankText: String
+        switch rank {
+        case 1: rankText = "1st place"
+        case 2: rankText = "2nd place"
+        case 3: rankText = "3rd place"
+        default: rankText = "Ranked \(rank)"
+        }
+        return "\(stat.memberName), \(rankText), \(String(format: "%.1f", stat.totalKM)) kilometers in \(stat.totalRides) rides, \(String(format: "%.0f", stat.totalElevation)) metres elevation"
     }
 }
 
-#Preview {
-    let sampleActivities = [
-        Activity(
-            memberName: "John Doe",
-            activityName: "Morning Ride",
-            distance: 45.5,
-            date: Date(),
-            averageSpeed: 28.5,
-            elevationGain: 450,
-            movingTime: 5400,
-            type: "Ride"
-        ),
-        Activity(
-            memberName: "John Doe",
-            activityName: "Evening Ride",
-            distance: 32.0,
-            date: Date().addingTimeInterval(-86400),
-            averageSpeed: 25.0,
-            elevationGain: 320,
-            movingTime: 4600,
-            type: "Ride"
-        )
-    ]
-    
-    let stats = [
-        MemberStats(memberName: "John Doe", activities: sampleActivities),
-        MemberStats(memberName: "Jane Smith", activities: [sampleActivities[0]]),
-    ]
-    
-    return MemberStatsTableView(stats: stats)
-}

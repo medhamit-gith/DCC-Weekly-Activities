@@ -489,4 +489,4 @@ Your DCC Weekly Activities app now has:
 
 **Made with ❤️ for Desi Cycling Club** 🚴‍♂️
 
-Last Updated: February 15, 2026
+Last Updated: February 28, 2026

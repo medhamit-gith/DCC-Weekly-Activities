@@ -19,6 +19,8 @@ import LocalAuthentication
 struct RootView: View {
     @State private var stravaAPI  = StravaAPI.shared
     @State private var biometric  = BiometricAuth.shared
+    @State private var clubAuth   = ClubCodeAuthService.shared
+    @State private var cloudData  = CloudDataFetcher.shared
     @State private var showLaunch = true
     /// Flipped to true only after the launch animation fully dismisses.
     /// BiometricGateView waits on this before prompting Face ID, ensuring
@@ -29,15 +31,18 @@ struct RootView: View {
     var body: some View {
         ZStack {
             Group {
-                if stravaAPI.accessToken == nil {
-                    // ── Not authenticated ──────────────────────────────────────
-                    LoginView(launchDismissed: launchDismissed)
+                if !clubAuth.isAuthenticated {
+                    // ── Approach A: Club code entry (no Strava OAuth) ──────────
+                    ClubCodeLoginView()
                 } else if !biometric.isAuthenticated {
-                    // ── Token present but device lock not yet verified ─────────
+                    // ── Device lock verification (unchanged) ───────────────────
                     BiometricGateView(launchDismissed: launchDismissed)
                 } else {
-                    // ── Fully authenticated ────────────────────────────────────
+                    // ── Fully authenticated — load data from Worker ────────────
                     WeeklyDashboardView()
+                        .task {
+                            await cloudData.fetchData()
+                        }
                 }
             }
             .task {
@@ -97,7 +102,7 @@ struct RootView: View {
                 }
                 // Token present but stale — attempt a silent refresh.
                 // If that also fails, force logout so the user sees the Login screen.
-                let refreshed = await stravaAPI.refreshAccessToken()
+                let refreshed = await UserAuthService.shared.refreshAccessToken()
                 if !refreshed && stravaAPI.lastError != nil {
                     stravaAPI.logout()
                 }
@@ -304,7 +309,7 @@ struct BiometricGateView: View {
         if !stravaAPI.isTokenFresh {
             BiometricLog.step("Token stale after biometric — attempting silent refresh")
             isRefreshing = true
-            let refreshed = await stravaAPI.refreshAccessToken()
+            let refreshed = await UserAuthService.shared.refreshAccessToken()
             isRefreshing = false
             if refreshed {
                 BiometricLog.step("Silent token refresh ✅ — dashboard will load fresh data")

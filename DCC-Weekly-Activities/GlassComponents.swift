@@ -71,13 +71,14 @@ struct GlassActivityRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Activity icon
+            // Activity icon (decorative — type is conveyed in the text below)
             Image(systemName: activityIcon)
                 .font(.title2)
                 .foregroundStyle(Color.dccGreen)
                 .frame(width: 40, height: 40)
                 .background(Color.dccGreen.opacity(0.1))
                 .clipShape(Circle())
+                .accessibilityHidden(true)
             
             // Activity details
             VStack(alignment: .leading, spacing: 4) {
@@ -142,6 +143,7 @@ struct GlassSummaryCard: View {
                 Image(systemName: icon)
                     .font(.title3)
                     .foregroundStyle(color)
+                    .accessibilityHidden(true)
                 
                 Spacer()
             }
@@ -221,6 +223,7 @@ struct GlassErrorView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(Color.dccSaffron)
+                .accessibilityLabel("Error")
             
             VStack(spacing: 8) {
                 Text("Oops!")
@@ -295,6 +298,7 @@ struct GlassWelcomeCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
+                    .accessibilityHidden(true)
                 
                 Text("DCC Weekly Activities")
                     .font(.title)
@@ -324,6 +328,7 @@ struct GlassWelcomeCard: View {
                             .fontWeight(.semibold)
                     } else {
                         Image(systemName: "person.fill")
+                            .accessibilityHidden(true)
                         Text("Connect with Strava")
                             .fontWeight(.semibold)
                     }
@@ -339,6 +344,7 @@ struct GlassWelcomeCard: View {
                 HStack(spacing: 8) {
                     Image(systemName: biometricType.icon)
                         .foregroundStyle(Color.dccGreen)
+                        .accessibilityHidden(true)
                     Text("Secured with \(biometricType.displayName)")
                         .font(.caption)
                         .foregroundStyle(.secondary)

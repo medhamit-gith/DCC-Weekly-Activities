@@ -21,7 +21,7 @@ enum AppConfiguration {
     enum Strava {
         static let clientID = "YOUR_STRAVA_CLIENT_ID" // TODO: Replace with actual client ID
         static let clientSecret = "YOUR_STRAVA_CLIENT_SECRET" // TODO: Move to secure location
-        static let redirectURI = "dcc-activities://oauth/strava"
+        static let redirectURI = "dcc-activities://oauth/strava" // Must match Strava dashboard AND StravaConfig exactly
         static let clubID = "YOUR_CLUB_ID" // TODO: Replace with actual club ID
         
         // API Endpoints

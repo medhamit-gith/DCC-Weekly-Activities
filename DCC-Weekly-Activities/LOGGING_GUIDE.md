@@ -463,10 +463,10 @@ When reporting issues, copy from `═══════════` to `══�
 If there's a huge gap between timestamps, something is stuck:
 ```
 📺 ⏰ Simulating 1-second network delay...
-📺 Timestamp: 2026-02-15 10:00:01
+📺 Timestamp: 2026-02-28 10:00:01
 [10 second gap - WRONG!]
 📺 ⏰ Delay completed (1.00s)
-📺 Timestamp: 2026-02-15 10:00:11
+📺 Timestamp: 2026-02-28 10:00:11
 ```
 
 ### Tip 3: Count the Emojis

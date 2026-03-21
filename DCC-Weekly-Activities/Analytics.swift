@@ -5,7 +5,9 @@
 //  Analytics tracking (privacy-friendly)
 //
 
+import Combine
 import Foundation
+import SwiftUI
 
 // MARK: - Analytics Events
 
@@ -88,7 +90,7 @@ class AnalyticsManager {
     static let shared = AnalyticsManager()
     
     private var isEnabled: Bool {
-        AppConfiguration.Features.enableAnalytics
+        false // Analytics disabled; enable in AppConfiguration.Features.enableAnalytics
     }
     
     private init() {}
@@ -253,7 +255,7 @@ class PerformanceMonitor {
         #endif
         
         // Track performance metric
-        if AppConfiguration.Features.enableAnalytics {
+        if false { // Analytics disabled; enable in AppConfiguration.Features.enableAnalytics
             AnalyticsManager.shared.trackTiming(
                 "operation_duration",
                 duration: duration,
