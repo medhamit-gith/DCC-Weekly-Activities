@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC Weekly Activities — Architecture Dashboard</title>
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #1a1a1a;
+  --surface2: #242424;
+  --border: rgba(255,255,255,0.08);
+  --accent: #fc4c02;
+  --saffron: #f59e0b;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --purple: #8b5cf6;
+  --text: #f0f0f0;
+  --text2: #9ca3af;
+  --text3: #6b7280;
+  --radius: 12px;
+  --radius-lg: 18px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; line-height: 1.5; }
+
+/* NAV */
+nav { position: sticky; top: 0; z-index: 100; background: rgba(13,13,13,0.92); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; align-items: center; gap: 8px; height: 52px; overflow-x: auto; }
+.nav-logo { font-weight: 800; font-size: 15px; color: var(--accent); white-space: nowrap; margin-right: 16px; }
+.nav-btn { background: none; border: none; color: var(--text2); font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; transition: all .2s; }
+.nav-btn:hover, .nav-btn.active { background: rgba(252,76,2,0.15); color: var(--accent); }
+
+/* HERO */
+.hero { padding: 64px 32px 40px; text-align: center; }
+.hero h1 { font-size: clamp(28px, 5vw, 48px); font-weight: 900; background: linear-gradient(135deg, var(--accent), var(--saffron)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero p { color: var(--text2); margin-top: 12px; font-size: 16px; max-width: 600px; margin-left: auto; margin-right: auto; }
+.badge-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+.badge { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+.badge-orange { background: rgba(252,76,2,.2); color: var(--accent); border: 1px solid rgba(252,76,2,.3); }
+.badge-green { background: rgba(16,185,129,.2); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+.badge-blue { background: rgba(59,130,246,.2); color: var(--blue); border: 1px solid rgba(59,130,246,.3); }
+.badge-purple { background: rgba(139,92,246,.2); color: var(--purple); border: 1px solid rgba(139,92,246,.3); }
+.badge-saffron { background: rgba(245,158,11,.2); color: var(--saffron); border: 1px solid rgba(245,158,11,.3); }
+
+/* SECTIONS */
+section { padding: 48px 32px; max-width: 1200px; margin: 0 auto; }
+section + section { border-top: 1px solid var(--border); }
+.section-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+.section-sub { color: var(--text2); font-size: 14px; margin-bottom: 32px; }
+
+/* CARDS */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; }
+.card-title { font-size: 14px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+
+/* FLOW DIAGRAM */
+.flow { display: flex; flex-direction: column; gap: 0; }
+.flow-node { display: flex; align-items: flex-start; gap: 16px; }
+.flow-line { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 40px; }
+.flow-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0; }
+.flow-connector { width: 2px; flex: 1; min-height: 24px; }
+.flow-content { flex: 1; padding-bottom: 24px; }
+.flow-content h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.flow-content p { font-size: 13px; color: var(--text2); line-height: 1.6; }
+.flow-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.flow-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--surface2); color: var(--text2); font-family: 'SF Mono', monospace; }
+
+/* TREE */
+.tree { font-family: 'SF Mono', 'Courier New', monospace; font-size: 13px; color: var(--text2); line-height: 2; }
+.tree .key { color: var(--blue); }
+.tree .val { color: var(--green); }
+.tree .comment { color: var(--text3); }
+.tree .highlight { color: var(--accent); font-weight: 700; }
+.tree .route { color: var(--saffron); }
+
+/* PILL TABLE */
+.pill-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pill-table th { text-align: left; padding: 8px 12px; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--border); }
+.pill-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; }
+.pill-table tr:last-child td { border-bottom: none; }
+.pill-table code { font-family: 'SF Mono', monospace; font-size: 12px; background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--saffron); }
+
+/* METRIC CARDS */
+.metric { background: var(--surface2); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); text-align: center; }
+.metric-value { font-size: 32px; font-weight: 900; line-height: 1; }
+.metric-label { font-size: 12px; color: var(--text2); margin-top: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+
+/* TABS */
+.tab-bar { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface2); padding: 4px; border-radius: 10px; overflow-x: auto; }
+.tab-btn { background: none; border: none; color: var(--text2); font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap; transition: all .2s; }
+.tab-btn.active { background: var(--accent); color: white; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* SCREEN CARDS */
+.screen-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.screen-header { padding: 16px 20px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.screen-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.screen-body { padding: 20px; }
+.data-list { list-style: none; }
+.data-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text2); padding: 4px 0; }
+.data-list li::before { content: '→'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+
+/* ARCH DIAGRAM */
+.arch-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
+.arch-arrow { text-align: center; padding: 8px 0; color: var(--text3); font-size: 20px; }
+.arch-label { font-size: 11px; color: var(--text3); text-align: center; }
+
+/* STORAGE TABLE */
+.store-card { border-radius: var(--radius); padding: 16px; border: 1px solid; }
+.store-keychain { background: rgba(139,92,246,.08); border-color: rgba(139,92,246,.25); }
+.store-defaults { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.25); }
+.store-fs { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.25); }
+.store-memory { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.25); }
+.store-kv { background: rgba(252,76,2,.08); border-color: rgba(252,76,2,.25); }
+.store-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.store-keys { font-size: 12px; font-family: 'SF Mono', monospace; color: var(--text2); line-height: 2; }
+
+/* RESPONSIVE */
+@media(max-width: 640px) {
+  section { padding: 32px 16px; }
+  .hero { padding: 40px 16px 28px; }
+  nav { padding: 0 16px; }
+}
+
+/* TOOLTIP */
+[data-tip] { position: relative; cursor: help; border-bottom: 1px dashed var(--text3); }
+[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; white-space: nowrap; z-index: 50; color: var(--text); pointer-events: none; }
+
+/* SCROLL ANCHOR OFFSET */
+.anchor { scroll-margin-top: 64px; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <span class="nav-logo">🚴 DCC Architecture</span>
+  <button class="nav-btn active" onclick="scrollTo('overview')">Overview</button>
+  <button class="nav-btn" onclick="scrollTo('flow')">Data Flow</button>
+  <button class="nav-btn" onclick="scrollTo('auth')">Auth</button>
+  <button class="nav-btn" onclick="scrollTo('screens')">Screens</button>
+  <button class="nav-btn" onclick="scrollTo('data')">Data Models</button>
+  <button class="nav-btn" onclick="scrollTo('storage')">Storage</button>
+  <button class="nav-btn" onclick="scrollTo('backend')">Backend</button>
+  <button class="nav-btn" onclick="scrollTo('services')">Services</button>
+  <button class="nav-btn" onclick="scrollTo('files')">Files</button>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>DCC Weekly Activities</h1>
+  <p>End-to-end architecture documentation for the iOS cycling club dashboard — from Cloudflare Worker to SwiftUI screens.</p>
+  <div class="badge-row">
+    <span class="badge badge-orange">Swift 5.9</span>
+    <span class="badge badge-blue">iOS 16+</span>
+    <span class="badge badge-green">Cloudflare Workers</span>
+    <span class="badge badge-purple">SwiftUI</span>
+    <span class="badge badge-saffron">Strava API</span>
+    <span class="badge badge-blue">tvOS</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: OVERVIEW -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section id="overview" class="anchor">
+  <div class="section-title">System Overview</div>
+  <div class="section-sub">Three-tier architecture: Strava API → Cloudflare Worker → iOS App</div>
+
+  <div class="grid-4" style="margin-bottom:24px">
+    <div class="metric"><div class="metric-value" style="color:var(--accent)">2</div><div class="metric-label">Auth Paths</div></div>
+    <div class="metric"><div class="metric-value" style="color:var(--green)">3</div><div class="metric-label">Cron Runs/Day</div></div>
+    <div class="metric"><div class="metric-value" style="color:var(--blue)">2</div><div class="metric-label">Weeks Cached</div></div>
+    <div class="metric"><div class="metric-value" style="color:var(--purple)">5</div><div class="metric-label">Dashboard Tabs</div></div>
+    <div class="metric"><div class="metric-value" style="color:var(--saffron)">4</div><div class="metric-label">Storage Types</div></div>
+    <div class="metric"><div class="metric-value" style="color:var(--accent)">200</div><div class="metric-label">Max Activities/Fetch</div></div>
+    <div class="metric"><div class="metric-value" style="color:var(--green)">50</div><div class="metric-label">Weekly Activity Estimate</div></div>
+    <div class="metric"><div class="metric-value" style="color:var(--blue)">5</div><div class="metric-label">Radar Chart Axes</div></div>
+  </div>
+
+  <!-- Architecture diagram -->
+  <div style="display:grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items:center; gap:8px; margin-bottom:32px;">
+    <div class="arch-box" style="border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.05);">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Layer 1 — Data Source</div>
+      <div style="font-size:15px;font-weight:700;">Strava API</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;">Club 212760 activities<br>OAuth token exchange<br>Athlete profile lookup</div>
+      <div style="margin-top:10px;font-family:monospace;font-size:11px;color:var(--saffron);">api/v3/clubs/212760/activities</div>
+    </div>
+    <div style="text-align:center">
+      <div style="color:var(--text3);font-size:20px;">→</div>
+      <div style="font-size:10px;color:var(--text3);">HTTPS</div>
+    </div>
+    <div class="arch-box" style="border-color:rgba(252,76,2,.3); background:rgba(252,76,2,.05);">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Layer 2 — Backend</div>
+      <div style="font-size:15px;font-weight:700;">Cloudflare Worker</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;">Activity aggregation<br>KV caching (2 weeks)<br>OAuth proxy</div>
+      <div style="margin-top:10px;font-family:monospace;font-size:11px;color:var(--accent);">dcc-strava.amit-r-kamat.workers.dev</div>
+    </div>
+    <div style="text-align:center">
+      <div style="color:var(--text3);font-size:20px;">→</div>
+      <div style="font-size:10px;color:var(--text3);">JSON/HTTPS</div>
+    </div>
+    <div class="arch-box" style="border-color:rgba(59,130,246,.3); background:rgba(59,130,246,.05);">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Layer 3 — Client</div>
+      <div style="font-size:15px;font-weight:700;">iOS / tvOS App</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;">SwiftUI dashboard<br>Biometric auth<br>Adaptive layout (iPhone/iPad/TV)</div>
+      <div style="margin-top:10px;font-family:monospace;font-size:11px;color:var(--blue);">CloudDataFetcher → Views</div>
+    </div>
+  </div>
+
+  <!-- Key design decisions -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Why a Cloudflare Worker?</div>
+      <ul class="data-list">
+        <li>Strava Club Activities API strips <code>start_date</code> from responses for privacy — no date on activities</li>
+        <li>Without dates, the app can't filter "this week" vs "last week" directly</li>
+        <li>Worker uses a <strong>fingerprint tracker</strong>: each activity is keyed by <code>name|distance|movingTime</code></li>
+        <li>Activities are "first seen" timestamped when the cron first encounters them each week</li>
+        <li>Worker also acts as OAuth proxy — keeps <code>client_secret</code> off the device entirely</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">Why Two Auth Paths?</div>
+      <ul class="data-list">
+        <li><strong>Strava OAuth</strong>: Full experience — personal analytics, radar charts, what-if engine uses real athlete ID</li>
+        <li><strong>Club Code</strong>: Zero friction — members who don't want to connect Strava still see club data</li>
+        <li>Club code data source is identical (same Worker endpoint) — only profile fetch differs</li>
+        <li>Both paths require biometric lock (Face ID) after launch for device security</li>
+        <li>Valid codes: <code>DCC2026</code>, <code>DESI2026</code> — stored in ClubCodeAuthService</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: DATA FLOW -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section id="flow" class="anchor">
+  <div class="section-title">End-to-End Data Flow</div>
+  <div class="section-sub">How activity data travels from Strava's servers to every chart and table in the app</div>
+
+  <div class="flow">
+    <!-- Step 1 -->
+    <div class="flow-node">
+      <div class="flow-line">
+        <div class="flow-circle" style="background:rgba(245,158,11,.2);color:var(--saffron);">1</div>
+        <div class="flow-connector" style="background:rgba(245,158,11,.3);"></div>
+      </div>
+      <div class="flow-content">
+        <h4>Strava API — Club Activities Feed</h4>
+        <p>The Cloudflare Worker's bot account calls <code>GET /api/v3/clubs/212760/activities?per_page=200</code> using its own Strava access token. The response is an array of up to 200 activities, newest first. <strong>No <code>start_date</code> field is returned</strong> (Strava strips it for club privacy). Fields available: athlete name, activity name, distance, moving_time, total_elevation_gain, sport_type.</p>
+        <div class="flow-tags">
+          <span class="flow-tag">GET /clubs/212760/activities</span>
+          <span class="flow-tag">per_page=200</span>
+          <span class="flow-tag">no start_date</span>
+          <span class="flow-tag">newest-first order</span>
+        </div>
+      </div>
+    </div>
+    <!-- Step 2 -->
+    <div class="flow-node">
+      <div class="flow-line">
+        <div class="flow-circle" style="background:rgba(252,76,2,.2);color:var(--accent);">2</div>
+        <div class="flow-connector" style="background:rgba(252,76,2,.3);"></div>
+      </div>
+      <div class="flow-content">
+        <h4>Worker — Fingerprint & Track (Monday vs Incremental)</h4>
+        <p><strong>Monday (UTC day=1):</strong> Full reset. Deletes all KV keys older than last week. Splits the 200-activity feed at position 50 (<code>WEEKLY_ACTIVITIES_ESTIMATE</code>): top 50 → this week tracker, rest → last week tracker. Assigns <code>seenAt = Monday 08:00 UTC</code>.</p>
+        <p style="margin-top:8px;"><strong>Tue–Sun:</strong> Loads existing <code>tracker_YYYY-MM-DD</code> from KV. Compares each activity's fingerprint (<code>firstname_lastname|name|distance|movingTime</code>). New fingerprints get <code>seenAt = now</code>. Already-seen fingerprints are ignored.</p>
+        <div class="flow-tags">
+          <span class="flow-tag">fingerprint = name|distance|movingTime</span>
+          <span class="flow-tag">KV: tracker_2026-03-16</span>
+          <span class="flow-tag">WEEKLY_ACTIVITIES_ESTIMATE=50</span>
+          <span class="flow-tag">Monday reset</span>
+        </div>
+      </div>
+    </div>
+    <!-- Step 3 -->
+    <div class="flow-node">
+      <div class="flow-line">
+        <div class="flow-circle" style="background:rgba(252,76,2,.2);color:var(--accent);">3</div>
+        <div class="flow-connector" style="background:rgba(252,76,2,.3);"></div>
+      </div>
+      <div class="flow-content">
+        <h4>Worker — Aggregate & Cache Payload</h4>
+        <p>Iterates all tracked activities for the week. Groups by member name. Computes: <code>totalDistance</code>, <code>totalElevation</code>, <code>totalMovingTime</code>, <code>rideCount</code>, and weighted-average speed. Sorts members by distance descending. Writes the complete JSON payload to two KV keys: <code>club_data_2026-03-16</code> (week-specific, TTL 7 days) and <code>club_data</code> (generic shorthand, TTL 7 days).</p>
+        <div class="flow-tags">
+          <span class="flow-tag">KV: club_data_2026-03-16</span>
+          <span class="flow-tag">KV: club_data</span>
+          <span class="flow-tag">TTL 7 days</span>
+          <span class="flow-tag">sorted by distance</span>
+        </div>
+      </div>
+    </div>
+    <!-- Step 4 -->
+    <div class="flow-node">
+      <div class="flow-line">
+        <div class="flow-circle" style="background:rgba(59,130,246,.2);color:var(--blue);">4</div>
+        <div class="flow-connector" style="background:rgba(59,130,246,.3);"></div>
+      </div>
+      <div class="flow-content">
+        <h4>iOS — CloudDataFetcher.fetchData(weekOffset:)</h4>
+        <p>Called from <code>WeeklyDashboardView.loadClubActivities()</code> whenever the user changes the week or the view appears. Requests <code>GET /club-data?weekOffset=N</code>. Decodes <code>CloudDataResponse</code> via <code>JSONDecoder</code>. Sets <code>members: [CloudMemberData]</code> on the shared singleton. Handles <code>noDataAvailable: true</code> for weeks with no KV data (past weeks that predate the tracker).</p>
+        <div class="flow-tags">
+          <span class="flow-tag">CloudDataFetcher.shared</span>
+          <span class="flow-tag">URLSession.shared.data(from:)</span>
+          <span class="flow-tag">JSONDecoder</span>
+          <span class="flow-tag">noDataAvailable flag</span>
+        </div>
+      </div>
+    </div>
+    <!-- Step 5 -->
+    <div class="flow-node">
+      <div class="flow-line">
+        <div class="flow-circle" style="background:rgba(59,130,246,.2);color:var(--blue);">5</div>
+        <div class="flow-connector" style="background:rgba(59,130,246,.3);"></div>
+      </div>
+      <div class="flow-content">
+        <h4>iOS — Convert to Activity Model</h4>
+        <p><code>CloudDataFetcher.toActivities(weekOffset:)</code> iterates each <code>CloudMemberData</code> and each nested <code>CloudActivityData</code>. Parses <code>startDate</code> (ISO8601 string from worker) if present, otherwise falls back to Wednesday of the target week as a stable midpoint date. Creates <code>Activity</code> instances with memberName, distance (km), date, averageSpeed, elevationGain, movingTime, type.</p>
+        <div class="flow-tags">
+          <span class="flow-tag">Activity struct</span>
+          <span class="flow-tag">ISO8601DateFormatter</span>
+          <span class="flow-tag">fallback: Wed of target week</span>
+        </div>
+      </div>
+    </div>
+    <!-- Step 6 -->
+    <div class="flow-node">
+      <div class="flow-line">
+        <div class="flow-circle" style="background:rgba(139,92,246,.2);color:var(--purple);">6</div>
+        <div class="flow-connector" style="background:rgba(139,92,246,.3);"></div>
+      </div>
+      <div class="flow-content">
+        <h4>iOS — Build MemberStats (Aggregation Layer)</h4>
+        <p>Groups activities by <code>memberName</code> into a dictionary. For each member: sums totalKM, counts rides, averages speed, sums elevation. Looks up <code>WeeklyCache.previousWeekLookup()</code> (disk cache) to get last week's stats for trend calculation (<code>TrendDirection.up/down/stable/new</code>). Sorts by totalKM descending. Result: <code>stats: [MemberStats]</code> which all dashboard views consume.</p>
+        <div class="flow-tags">
+          <span class="flow-tag">MemberStats array</span>
+          <span class="flow-tag">WeeklyCache lookup</span>
+          <span class="flow-tag">TrendDirection</span>
+          <span class="flow-tag">sorted by km</span>
+        </div>
+      </div>
+    </div>
+    <!-- Step 7 -->
+    <div class="flow-node">
+      <div class="flow-line">
+        <div class="flow-circle" style="background:rgba(16,185,129,.2);color:var(--green);">7</div>
+      </div>
+      <div class="flow-content">
+        <h4>iOS — Render in Dashboard Views</h4>
+        <p>The <code>AdaptiveDashboardRouter</code> branches on <code>horizontalSizeClass</code>: <strong>compact</strong> → <code>ProfessionalDashboardView</code> (iPhone, 5-tab custom nav), <strong>regular</strong> → <code>IPadDashboardView</code> (iPad, Liquid Glass sidebarAdaptable). Both consume the same <code>stats: [MemberStats]</code>, <code>activities: [Activity]</code>, <code>dateRange: DateInterval?</code>, and <code>athleteProfile: AthleteProfile</code> props.</p>
+        <div class="flow-tags">
+          <span class="flow-tag">AdaptiveDashboardRouter</span>
+          <span class="flow-tag">horizontalSizeClass</span>
+          <span class="flow-tag">ProfessionalDashboardView</span>
+          <span class="flow-tag">IPadDashboardView</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: AUTH -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section id="auth" class="anchor">
+  <div class="section-title">Authentication Architecture</div>
+  <div class="section-sub">Dual-path auth: Club code for casual members, Strava OAuth for power users</div>
+
+  <div class="grid-2" style="margin-bottom:24px;">
+    <!-- Path A -->
+    <div class="card" style="border-color:rgba(16,185,129,.25);">
+      <div class="card-title" style="color:var(--green);">Path A — Club Code (Simple)</div>
+      <div class="flow" style="gap:0">
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(16,185,129,.2);color:var(--green);font-size:12px;">1</div><div class="flow-connector" style="background:rgba(16,185,129,.2);"></div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">ClubCodeLoginView</h4><p style="font-size:12px;">User enters name + code (e.g. <code>DCC2026</code>). Shake animation on invalid entry.</p></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(16,185,129,.2);color:var(--green);font-size:12px;">2</div><div class="flow-connector" style="background:rgba(16,185,129,.2);"></div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">ClubCodeAuthService.authenticate()</h4><p style="font-size:12px;">Validates against <code>["DCC2026","DESI2026"]</code>. Saves to UserDefaults: <code>dcc_club_code</code> + <code>dcc_member_name</code>.</p></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(16,185,129,.2);color:var(--green);font-size:12px;">3</div><div class="flow-connector" style="background:rgba(16,185,129,.2);"></div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">BiometricGateView</h4><p style="font-size:12px;">Face ID / Touch ID prompt. Required regardless of auth path. Skips Strava token refresh (no token exists).</p></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(16,185,129,.2);color:var(--green);font-size:12px;">4</div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">Dashboard loads via CloudDataFetcher</h4><p style="font-size:12px;">No Strava token needed. Athlete profile is synthesised from club code member name.</p></div>
+        </div>
+      </div>
+    </div>
+    <!-- Path B -->
+    <div class="card" style="border-color:rgba(245,158,11,.25);">
+      <div class="card-title" style="color:var(--saffron);">Path B — Strava OAuth (Full-Featured)</div>
+      <div class="flow" style="gap:0">
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(245,158,11,.2);color:var(--saffron);font-size:12px;">1</div><div class="flow-connector" style="background:rgba(245,158,11,.2);"></div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">UserAuthService.beginOAuth()</h4><p style="font-size:12px;"><code>ASWebAuthenticationSession</code> opens Strava. Redirect URI: <code>dcc-activities://localhost/oauth/strava</code>. 90-second timeout with fallback state reset.</p></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(245,158,11,.2);color:var(--saffron);font-size:12px;">2</div><div class="flow-connector" style="background:rgba(245,158,11,.2);"></div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">handleRedirect(url:) → exchangeCodeViaProxy()</h4><p style="font-size:12px;">Extracts <code>code=</code> param. POSTs to Cloudflare <code>/exchange</code>. Worker proxies to Strava. Returns <code>access_token</code> + <code>refresh_token</code> + <code>expires_at</code>.</p></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(245,158,11,.2);color:var(--saffron);font-size:12px;">3</div><div class="flow-connector" style="background:rgba(245,158,11,.2);"></div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">BiometricAuth saves tokens to Keychain</h4><p style="font-size:12px;">Access token → Keychain. Refresh token → Keychain. Both keyed under <code>com.dcc.weeklyactivities</code> service. Accessibility: <code>WhenUnlockedThisDeviceOnly</code>.</p></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-line"><div class="flow-circle" style="background:rgba(245,158,11,.2);color:var(--saffron);font-size:12px;">4</div></div>
+          <div class="flow-content"><h4 style="font-size:13px;">BiometricGateView + silent refresh</h4><p style="font-size:12px;">Face ID fires. If token stale (<5 min left), <code>refreshAccessToken()</code> calls <code>/refresh</code> on worker. Fail → force logout.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Token lifecycle table -->
+  <div class="card">
+    <div class="card-title">Token Lifecycle</div>
+    <table class="pill-table">
+      <thead><tr><th>Event</th><th>Action</th><th>Storage</th><th>Who</th></tr></thead>
+      <tbody>
+        <tr><td>First OAuth success</td><td>Save access + refresh tokens</td><td>Keychain (WhenUnlockedThisDeviceOnly)</td><td>BiometricAuth</td></tr>
+        <tr><td>Cold launch</td><td>Restore both tokens from Keychain</td><td>Keychain → in-memory</td><td>RootView.task</td></tr>
+        <tr><td>Access token stale (expires_at - 300s)</td><td>POST /refresh → new tokens</td><td>Keychain overwrite</td><td>UserAuthService.refreshAccessToken()</td></tr>
+        <tr><td>BiometricGateView appears (Strava path)</td><td>Face ID → check token freshness → maybe refresh</td><td>Keychain if refreshed</td><td>BiometricGateView.authenticate()</td></tr>
+        <tr><td>Logout (either path)</td><td>Delete tokens + clear UserDefaults</td><td>Keychain delete + UserDefaults remove</td><td>StravaAPI.logout() + ClubCodeAuthService.logout()</td></tr>
+        <tr><td>TV token copy</td><td>Encode JSON bundle to clipboard</td><td>UIPasteboard</td><td>copyTokenToClipboard()</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: SCREENS -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section id="screens" class="anchor">
+  <div class="section-title">UI Screens & Components</div>
+  <div class="section-sub">Every screen, what it shows, and what data drives it</div>
+
+  <!-- Tab bar to switch iPhone/iPad/Auth/Modals -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab(this,'auth-screens')">Auth Screens</button>
+    <button class="tab-btn" onclick="switchTab(this,'iphone-screens')">iPhone Dashboard</button>
+    <button class="tab-btn" onclick="switchTab(this,'ipad-screens')">iPad Dashboard</button>
+    <button class="tab-btn" onclick="switchTab(this,'modal-screens')">Modals & Overlays</button>
+  </div>
+
+  <!-- AUTH SCREENS -->
+  <div class="tab-pane active" id="auth-screens">
+    <div class="grid-2">
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(16,185,129,.15);">🔑</div>
+          <div><div style="font-weight:700;font-size:14px;">ClubCodeLoginView</div><div style="font-size:12px;color:var(--text2);">First screen after launch (Approach A)</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Name text field + club code text field (uppercase auto-format)</li>
+            <li>Shake animation on invalid code entry (CAKeyframeAnimation)</li>
+            <li>DCC branded logo header with Indian flag colour accents</li>
+            <li>Success → sets ClubCodeAuthService.isAuthenticated = true</li>
+            <li>Error message display below code field</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: None (no API calls). Storage write: UserDefaults on success.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(139,92,246,.15);">🔒</div>
+          <div><div style="font-weight:700;font-size:14px;">BiometricGateView</div><div style="font-size:12px;color:var(--text2);">Device security gate — both paths</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Face ID / Touch ID icon (dynamic, based on device capability)</li>
+            <li>Auto-fires authentication once launchDismissed flag becomes true</li>
+            <li>Progress indicator during token refresh (Strava path only)</li>
+            <li>Error message if biometric fails ("Authentication failed")</li>
+            <li>Log Out button available even from gate screen</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: BiometricAuth.biometricType for icon. Strava path also checks token expiry.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(252,76,2,.15);">🔗</div>
+          <div><div style="font-weight:700;font-size:14px;">LoginView (Strava OAuth)</div><div style="font-size:12px;color:var(--text2);">Strava connect screen (legacy path B entry)</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>GlassWelcomeCard with connect button</li>
+            <li>Simulator banner: "Demo Mode" / "Real Data" buttons (DEBUG only)</li>
+            <li>Biometric type icon and display name</li>
+            <li>isAuthenticating spinner during OAuth flow</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: BiometricAuth.biometricType, StravaAPI.isAuthenticating.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IPHONE SCREENS -->
+  <div class="tab-pane" id="iphone-screens">
+    <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;font-size:13px;color:var(--text2);">
+      iPhone uses <strong>ProfessionalDashboardView</strong> — a custom 5-tab horizontal switcher with <code>TabView(.page)</code> for smooth swiping. The header bar is fixed; only the content scrolls.
+    </div>
+    <div class="grid-2">
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(252,76,2,.15);">🚴</div>
+          <div><div style="font-weight:700;font-size:14px;">Main Tab (Ride)</div><div style="font-size:12px;color:var(--text2);">Hero stats + podium</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Animated hero strip: total club km, member count, week label</li>
+            <li>Club trend vs last week (↑ ↓ with percentage change)</li>
+            <li>Top-3 podium display with rank medals (🥇🥈🥉)</li>
+            <li>Date range header (w/c 16 Mar → 22 Mar)</li>
+            <li>Pull-to-refresh triggers loadClubActivities()</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: stats[0..2] for podium. All stats for totals. dateRange for header.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(59,130,246,.15);">📊</div>
+          <div><div style="font-weight:700;font-size:14px;">Overview Tab</div><div style="font-size:12px;color:var(--text2);">Bar chart + summary grid</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>DistanceBarChart: horizontal bars per member, sorted by distance</li>
+            <li>Quick stats grid: total km, avg speed, total elevation, total rides</li>
+            <li>ChartHelpTooltip — tappable hint explaining chart values</li>
+            <li>Animated bar growth on appear (spring animation)</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: stats for bar chart. Aggregated totals computed from stats array.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(245,158,11,.15);">🏆</div>
+          <div><div style="font-weight:700;font-size:14px;">Leaderboard Tab</div><div style="font-size:12px;color:var(--text2);">Ranked member table</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Scrollable list: rank number, name, distance, rides, trend arrow</li>
+            <li>W-o-W trend indicator (↑ green / ↓ red / → stable / ★ new)</li>
+            <li>Tap row → RiderAnalysisView modal sheet</li>
+            <li>Activity sub-list expandable per member</li>
+            <li>Best ride of week highlight card (longest single activity)</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: stats sorted by totalKM. activities for sub-lists.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(16,185,129,.15);">⚡</div>
+          <div><div style="font-weight:700;font-size:14px;">Insights Tab</div><div style="font-size:12px;color:var(--text2);">Gap analysis + coaching tips</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Rider chip selector (horizontally scrolling name chips)</li>
+            <li>Gap to leader: "X km behind, needs Y more rides"</li>
+            <li>Coaching tip cards based on gap percentage</li>
+            <li>Motivational messages rotating based on rank</li>
+            <li>InsightsViewModel drives all computations</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: InsightsViewModel with stats + activities. Coaching tips generated per rider.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(139,92,246,.15);">📡</div>
+          <div><div style="font-weight:700;font-size:14px;">Analysis Tab</div><div style="font-size:12px;color:var(--text2);">Radar chart + scatter plot</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>5-axis radar chart: Distance, Speed, Elevation, Consistency, Efficiency</li>
+            <li>All axes normalised 0–1 against club max per metric</li>
+            <li>Rider selector to compare individuals</li>
+            <li>PerformanceZonesView: speed zones distribution</li>
+            <li>Efficiency score = speed per metre of elevation</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Data: RiderStats (computed from Activity array). InsightsViewModel normalizes values.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IPAD SCREENS -->
+  <div class="tab-pane" id="ipad-screens">
+    <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;font-size:13px;color:var(--text2);">
+      iPad uses <strong>IPadDashboardView</strong> — <code>TabView(.sidebarAdaptable)</code> with Liquid Glass styling. The same 4 primary tabs as iPhone but with larger charts and a persistent sidebar option.
+    </div>
+    <div class="grid-2">
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(252,76,2,.15);">📱</div>
+          <div><div style="font-weight:700;font-size:14px;">This Week Tab (iPad Main)</div><div style="font-size:12px;color:var(--text2);">Full-width hero + leaderboard</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Date range header with week navigation (←/→ week arrows)</li>
+            <li>Hero strip with animated totals</li>
+            <li>Top-3 podium in larger format</li>
+            <li>Full ranked member table below podium</li>
+            <li>Best ride card at bottom</li>
+          </ul>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(59,130,246,.15);">⚙️</div>
+          <div><div style="font-weight:700;font-size:14px;">Profile Toolbar Menu (iPad)</div><div style="font-size:12px;color:var(--text2);">Top-right avatar button</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Copy Token for Apple TV — encodes JSON bundle to clipboard</li>
+            <li>Worker KV Dashboard — opens WorkerKVDashboardView sheet</li>
+            <li>Log Out (destructive) — clears all auth state</li>
+            <li>User initial shown in circle avatar</li>
+            <li>Token copied toast (2.5s auto-dismiss)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SCREENS -->
+  <div class="tab-pane" id="modal-screens">
+    <div class="grid-2">
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(252,76,2,.15);">💥</div>
+          <div><div style="font-weight:700;font-size:14px;">CrashErrorView</div><div style="font-size:12px;color:var(--text2);">Animated error overlay</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>5-phase cyclist crash animation: riding → impact → airborne → crashed → thumbs-up</li>
+            <li>Cycling-themed error names: "Bonked!", "Dropped Chain!", "Mechanical!"</li>
+            <li>Error code badge + human-readable message</li>
+            <li>Retry button triggers auth refresh or re-OAuth</li>
+            <li>accessibilityReduceMotion: skips animation, shows static card</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Trigger: stravaAPI.lastError. Bound via .crashErrorOverlay() modifier.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(139,92,246,.15);">⚡</div>
+          <div><div style="font-weight:700;font-size:14px;">PerformanceDashboardView</div><div style="font-size:12px;color:var(--text2);">App performance monitoring modal</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Health ring: animated circle with score/100</li>
+            <li>Category grid: viewRender / networking / aggregation / decoding</li>
+            <li>Event timeline: last 8 events with duration + rating dot</li>
+            <li>Bar sparklines per category (last 5 events)</li>
+            <li>Clear session data button</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Trigger: profile menu → "Performance Stats". Driven by PerformanceLogger.shared.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(16,185,129,.15);">🗄️</div>
+          <div><div style="font-weight:700;font-size:14px;">WorkerKVDashboardView</div><div style="font-size:12px;color:var(--text2);">Live Cloudflare KV cache viewer</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Worker status card: online dot, total activities + members + km across cached weeks</li>
+            <li>Collapsible week cards: LIVE badge on current week, "No Data" for uncached weeks</li>
+            <li>Expanded member table: rank badge (gold/silver/bronze), distance, rides, avg speed, moving time</li>
+            <li>Toolbar refresh button — re-fetches both weeks on demand</li>
+            <li>"Last refreshed X ago" footer timestamp</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Trigger: profile menu → "Worker KV Dashboard". Driven by WorkerKVDashboardViewModel.</div>
+        </div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-header">
+          <div class="screen-icon" style="background:rgba(245,158,11,.15);">🎯</div>
+          <div><div style="font-weight:700;font-size:14px;">RiderAnalysisView</div><div style="font-size:12px;color:var(--text2);">Deep dive per rider</div></div>
+        </div>
+        <div class="screen-body">
+          <ul class="data-list">
+            <li>Header: name, rank medal emoji, quick stats chips</li>
+            <li>Activities tab: scrollable list of this week's rides with details</li>
+            <li>Performance tab: radar chart + efficiency score</li>
+            <li>Comparison tab: side-by-side vs leader in each metric</li>
+            <li>What-if projections: "How many more rides to match leader?"</li>
+          </ul>
+          <div style="margin-top:12px;font-size:12px;color:var(--text3);">Trigger: tap any row in Leaderboard tab. Receives MemberStats + all RiderStats.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 5 — DATA MODELS
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="data-models">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-icon">🗂️</div>
+      <div>
+        <div class="section-title">Data Models</div>
+        <div class="section-sub">Swift structs, Codable JSON schemas, and their relationships</div>
+      </div>
+    </div>
+
+    <!-- Relationship diagram -->
+    <div style="background:var(--card);border-radius:16px;padding:24px;margin-bottom:28px;border:1px solid var(--border);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:16px;color:var(--accent);">Model Relationship Diagram</div>
+      <div style="overflow-x:auto;">
+        <div style="display:flex;gap:12px;align-items:flex-start;min-width:700px;">
+
+          <div style="background:var(--bg);border:1.5px solid var(--accent);border-radius:10px;padding:14px 16px;min-width:160px;">
+            <div style="font-weight:700;font-size:12px;color:var(--accent);margin-bottom:8px;">CloudDataResponse</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.8;">lastFetchedAt: String<br>weekLabel: String<br>weekStart: String<br>weekEnd: String<br>memberCount: Int<br>totalActivities: Int<br>members: [Member]</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;padding-top:30px;color:var(--text3);font-size:18px;">1 → *</div>
+
+          <div style="background:var(--bg);border:1.5px solid #8b5cf6;border-radius:10px;padding:14px 16px;min-width:165px;">
+            <div style="font-weight:700;font-size:12px;color:#8b5cf6;margin-bottom:8px;">Member (Codable)</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.8;">name: String<br>totalDistance: Double<br>totalElevation: Double<br>totalMovingTime: Int<br>avgSpeed: Double<br>rideCount: Int<br>movingTimeFormatted: String<br>activities: [Activity]</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;padding-top:30px;color:var(--text3);font-size:18px;">1 → *</div>
+
+          <div style="background:var(--bg);border:1.5px solid #10b981;border-radius:10px;padding:14px 16px;min-width:160px;">
+            <div style="font-weight:700;font-size:12px;color:#10b981;margin-bottom:8px;">Activity (Codable)</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.8;">name: String<br>distance: Double<br>movingTime: Int<br>elevationGain: Double<br>averageSpeed: Double<br>type: String<br>startDate: String?</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;padding-top:30px;color:var(--text3);font-size:18px;">→</div>
+
+          <div style="background:var(--bg);border:1.5px solid #f59e0b;border-radius:10px;padding:14px 16px;min-width:160px;">
+            <div style="font-weight:700;font-size:12px;color:#f59e0b;margin-bottom:8px;">MemberStats (VM)</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.8;">Computed from Member<br>rank: Int<br>distanceText: String<br>speedText: String<br>elevText: String<br>rideCountText: String<br>movingTimeText: String<br>initials: String</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Model cards grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;">
+
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:12px;">CloudDataResponse</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Decoded from Worker /club-data JSON</div>
+        <pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;color:var(--text2);overflow:auto;">struct CloudDataResponse: Codable {
+  let lastFetchedAt: String
+  let weekLabel:     String
+  let weekStart:     String   // "2026-03-16"
+  let weekEnd:       String   // "2026-03-22"
+  let memberCount:   Int
+  let totalActivities: Int
+  let members:       [Member]
+}</pre>
+        <ul class="data-list" style="margin-top:10px;">
+          <li>Top-level container decoded by CloudDataFetcher</li>
+          <li>weekStart/End used to validate data currency</li>
+          <li>Cached to JSON on disk (FileManager cache dir)</li>
+        </ul>
+      </div>
+
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:#8b5cf6;margin-bottom:12px;">Member</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Per-rider aggregated stats for one week</div>
+        <pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;color:var(--text2);overflow:auto;">struct Member: Codable, Identifiable {
+  let name:           String
+  let totalDistance:  Double   // km
+  let totalElevation: Double   // metres
+  let totalMovingTime: Int     // seconds
+  let avgSpeed:        Double  // km/h weighted
+  let rideCount:       Int
+  let movingTimeFormatted: String
+  let activities:      [Activity]
+  var id: String { name }
+}</pre>
+        <ul class="data-list" style="margin-top:10px;">
+          <li>Sorted by totalDistance desc by Worker</li>
+          <li>Used to build RiderStats / MemberStats VMs</li>
+        </ul>
+      </div>
+
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:#10b981;margin-bottom:12px;">Activity</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Individual ride detail within a Member</div>
+        <pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;color:var(--text2);overflow:auto;">struct Activity: Codable, Identifiable {
+  let name:          String
+  let distance:      Double   // km
+  let movingTime:    Int      // seconds
+  let elevationGain: Double   // m
+  let averageSpeed:  Double   // km/h
+  let type:          String   // "Ride", "Run"...
+  let startDate:     String?  // ISO8601
+  var id: String {
+    "\(name)-\(distance)-\(movingTime)"
+  }
+}</pre>
+        <ul class="data-list" style="margin-top:10px;">
+          <li>startDate included since Worker v2.1+ (for date validation)</li>
+          <li>type used to show sport emoji in activity rows</li>
+        </ul>
+      </div>
+
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:#f59e0b;margin-bottom:12px;">MemberStats (View Model)</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Display-ready object used by leaderboard + analysis</div>
+        <pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;color:var(--text2);overflow:auto;">struct MemberStats: Identifiable {
+  let rank:       Int
+  let name:       String
+  let initials:   String
+  let distance:   Double      // raw km
+  let elevation:  Double
+  let movingTime: Int
+  let rideCount:  Int
+  let avgSpeed:   Double
+  // Formatted text strings:
+  let distanceText:   String  // "112.4 km"
+  let elevationText:  String  // "450 m"
+  let speedText:      String  // "22.5 km/h"
+  let movingTimeText: String  // "4h 0m"
+}</pre>
+        <ul class="data-list" style="margin-top:10px;">
+          <li>Computed by InsightsViewModel.buildMemberStats()</li>
+          <li>Passed to RiderAnalysisView for deep-dive</li>
+        </ul>
+      </div>
+
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:#ef4444;margin-bottom:12px;">RiderStats (Insights VM)</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Analytics computed per rider for charts</div>
+        <pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;color:var(--text2);overflow:auto;">struct RiderStats: Identifiable {
+  let id:            String    // = name
+  let name:          String
+  let totalDistance: Double
+  let rideCount:     Int
+  let avgDistPerRide: Double
+  let totalElevation: Double
+  let avgSpeed:       Double
+  let movingTime:     Int
+  let consistencyPct: Double  // rides/week %
+  let efficiencyScore: Double // composite 0–100
+}</pre>
+        <ul class="data-list" style="margin-top:10px;">
+          <li>Computed in InsightsViewModel.computeRiderStats()</li>
+          <li>Used by InsightsView charts and RiderAnalysisView</li>
+        </ul>
+      </div>
+
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:var(--text1);margin-bottom:12px;">StravaConfig / AppConfiguration</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">App-wide constants and URLs</div>
+        <pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;color:var(--text2);overflow:auto;">enum StravaConfig {
+  static let clientID = "161984"
+  static let workerURL =
+    "https://dcc-strava.amit-r-kamat.workers.dev"
+  static let redirectURI =
+    "dcc-weekly://oauth"
+  static let scope =
+    "read,activity:read_all,profile:read_all"
+}
+
+enum AppConfiguration {
+  static let clubCode = "DCC2024"
+  static let biometricPrompt =
+    "Authenticate to access DCC"
+}</pre>
+        <ul class="data-list" style="margin-top:10px;">
+          <li>clientID is public — secret lives only in Cloudflare env</li>
+          <li>workerURL is the single endpoint for all backend calls</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 6 — STORAGE
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="storage" style="background:var(--card);">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-icon">💾</div>
+      <div>
+        <div class="section-title">Storage Architecture</div>
+        <div class="section-sub">Five distinct persistence layers — each with a specific purpose and lifetime</div>
+      </div>
+    </div>
+
+    <!-- Storage tier diagram -->
+    <div style="background:var(--bg);border-radius:16px;padding:24px;margin-bottom:28px;border:1px solid var(--border);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:20px;color:var(--accent);">Storage Layer Overview</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0;">
+
+        <div style="text-align:center;padding:16px 8px;border-right:1px solid var(--border);">
+          <div style="font-size:28px;margin-bottom:8px;">🔑</div>
+          <div style="font-weight:700;font-size:12px;color:#ef4444;">Keychain</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Sensitive tokens<br>Encrypted<br>Persists reinstall</div>
+        </div>
+
+        <div style="text-align:center;padding:16px 8px;border-right:1px solid var(--border);">
+          <div style="font-size:28px;margin-bottom:8px;">⚙️</div>
+          <div style="font-weight:700;font-size:12px;color:#8b5cf6;">UserDefaults</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">App preferences<br>Auth state flags<br>Persists reinstall</div>
+        </div>
+
+        <div style="text-align:center;padding:16px 8px;border-right:1px solid var(--border);">
+          <div style="font-size:28px;margin-bottom:8px;">📁</div>
+          <div style="font-weight:700;font-size:12px;color:#10b981;">File Cache</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">JSON responses<br>caches/ directory<br>OS can purge</div>
+        </div>
+
+        <div style="text-align:center;padding:16px 8px;border-right:1px solid var(--border);">
+          <div style="font-size:28px;margin-bottom:8px;">🧠</div>
+          <div style="font-weight:700;font-size:12px;color:#f59e0b;">In-Memory</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Live view state<br>@Observable VMs<br>Session lifetime</div>
+        </div>
+
+        <div style="text-align:center;padding:16px 8px;">
+          <div style="font-size:28px;margin-bottom:8px;">☁️</div>
+          <div style="font-weight:700;font-size:12px;color:var(--accent);">Cloudflare KV</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Aggregated data<br>7-day TTL<br>Global edge</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed storage cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;">
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-left:4px solid #ef4444;">
+        <div style="font-weight:700;font-size:14px;color:#ef4444;margin-bottom:4px;">Keychain</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">iOS Keychain Services — kSecClassGenericPassword</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Key</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Value</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Lifetime</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">strava_access_token</td>
+            <td style="padding:6px 4px;color:var(--text3);">Bearer JWT string</td>
+            <td style="padding:6px 4px;color:var(--text3);">6 hours (Strava)</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">strava_refresh_token</td>
+            <td style="padding:6px 4px;color:var(--text3);">Opaque token</td>
+            <td style="padding:6px 4px;color:var(--text3);">Until revoked</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 4px;color:var(--text1);">strava_token_expires_at</td>
+            <td style="padding:6px 4px;color:var(--text3);">Unix timestamp string</td>
+            <td style="padding:6px 4px;color:var(--text3);">With access token</td>
+          </tr>
+        </table>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);">Managed by <strong>UserAuthService</strong>. Survives app reinstall. Never logged or transmitted beyond the Worker.</div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-left:4px solid #8b5cf6;">
+        <div style="font-weight:700;font-size:14px;color:#8b5cf6;margin-bottom:4px;">UserDefaults</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Standard UserDefaults (suite: nil)</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Key</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Type</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">isClubCodeAuthenticated</td>
+            <td style="padding:6px 4px;color:var(--text3);">Bool — gate passed</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">isBiometricEnabled</td>
+            <td style="padding:6px 4px;color:var(--text3);">Bool — opt-in</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">isStravaAuthenticated</td>
+            <td style="padding:6px 4px;color:var(--text3);">Bool — OAuth done</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 4px;color:var(--text1);">lastDataRefreshDate</td>
+            <td style="padding:6px 4px;color:var(--text3);">Date — for UI badge</td>
+          </tr>
+        </table>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);">Auth flags read on launch to decide initial route. Reset on logout.</div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-left:4px solid #10b981;">
+        <div style="font-weight:700;font-size:14px;color:#10b981;margin-bottom:4px;">File Cache (Disk)</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">FileManager.default.urls(for: .cachesDirectory)</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">File</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Contents</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">club_data_current.json</td>
+            <td style="padding:6px 4px;color:var(--text3);">CloudDataResponse (this week)</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">club_data_last.json</td>
+            <td style="padding:6px 4px;color:var(--text3);">CloudDataResponse (last week)</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 4px;color:var(--text1);">last_fetch_timestamp</td>
+            <td style="padding:6px 4px;color:var(--text3);">ISO8601 string</td>
+          </tr>
+        </table>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);">Written by CloudDataFetcher after each successful fetch. Read on launch for instant UI. Can be purged by OS under storage pressure.</div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-left:4px solid #f59e0b;">
+        <div style="font-weight:700;font-size:14px;color:#f59e0b;margin-bottom:4px;">In-Memory (Observable VMs)</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">@Observable singletons injected via .environment()</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Object</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Holds</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">CloudDataFetcher</td>
+            <td style="padding:6px 4px;color:var(--text3);">currentData, lastWeekData, isLoading</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">InsightsViewModel</td>
+            <td style="padding:6px 4px;color:var(--text3);">memberStats[], riderStats[]</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">UserAuthService</td>
+            <td style="padding:6px 4px;color:var(--text3);">isAuthenticated, athlete name</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 4px;color:var(--text1);">ClubCodeAuthService</td>
+            <td style="padding:6px 4px;color:var(--text3);">isClubCodeAuthenticated Bool</td>
+          </tr>
+        </table>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);">Session-scoped. All VMs are recreated on cold launch. Data sourced from file cache initially, then refreshed from network.</div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-left:4px solid var(--accent);">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);margin-bottom:4px;">Cloudflare KV</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">DCC_DATA namespace — global edge key-value store</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Key Pattern</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Value / TTL</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">club_data_{YYYY-MM-DD}</td>
+            <td style="padding:6px 4px;color:var(--text3);">JSON payload / 14 days</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">club_data (alias)</td>
+            <td style="padding:6px 4px;color:var(--text3);">Current week JSON / 7 days</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">tracker_{YYYY-MM-DD}</td>
+            <td style="padding:6px 4px;color:var(--text3);">Fingerprint map / 14 days</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">bot_access_token</td>
+            <td style="padding:6px 4px;color:var(--text3);">Strava bearer / 6 hours</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 4px;color:var(--text1);">bot_refresh_token</td>
+            <td style="padding:6px 4px;color:var(--text3);">Rotates on each refresh</td>
+          </tr>
+        </table>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);">Monday reset: deleteOldKeys() purges all tracker_* and club_data_* older than last week to keep storage bounded.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 7 — BACKEND / CLOUDFLARE WORKER
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="backend">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-icon">⚡</div>
+      <div>
+        <div class="section-title">Cloudflare Worker Backend</div>
+        <div class="section-sub">Edge-deployed serverless JavaScript — the only place the Strava secret lives</div>
+      </div>
+    </div>
+
+    <!-- Two-worker diagram -->
+    <div style="background:var(--card);border-radius:16px;padding:24px;margin-bottom:28px;border:1px solid var(--border);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:20px;color:var(--accent);">Two-Worker Architecture</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+        <div style="background:var(--bg);border:2px solid var(--accent);border-radius:12px;padding:20px;">
+          <div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:12px;">Worker 1 — Token Exchange</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">cloudflare-workerworker.js</div>
+          <div style="font-size:11px;margin-bottom:8px;color:var(--text2);">Handles OAuth token operations only. Stateless — no KV needed.</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="background:rgba(99,102,241,.1);border-radius:6px;padding:8px;font-size:11px;">
+              <span style="color:var(--accent);font-weight:700;">POST /exchange</span><br>
+              <span style="color:var(--text3);">OAuth auth code → access + refresh tokens</span>
+            </div>
+            <div style="background:rgba(99,102,241,.1);border-radius:6px;padding:8px;font-size:11px;">
+              <span style="color:var(--accent);font-weight:700;">POST /refresh</span><br>
+              <span style="color:var(--text3);">Refresh token → new access token</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg);border:2px solid #10b981;border-radius:12px;padding:20px;">
+          <div style="font-weight:700;font-size:13px;color:#10b981;margin-bottom:12px;">Worker 2 — Club Data</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">cloudflare-club-data-worker.js (active)</div>
+          <div style="font-size:11px;margin-bottom:8px;color:var(--text2);">Fetches, aggregates, and caches club activities. Stateful — uses KV.</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="background:rgba(16,185,129,.1);border-radius:6px;padding:8px;font-size:11px;">
+              <span style="color:#10b981;font-weight:700;">GET /club-data[?weekOffset=N]</span><br>
+              <span style="color:var(--text3);">Returns cached aggregated stats. 0=current, -1=last week...</span>
+            </div>
+            <div style="background:rgba(16,185,129,.1);border-radius:6px;padding:8px;font-size:11px;">
+              <span style="color:#10b981;font-weight:700;">POST /fetch-now</span><br>
+              <span style="color:var(--text3);">Admin-key protected manual trigger (X-Admin-Key header)</span>
+            </div>
+            <div style="background:rgba(16,185,129,.1);border-radius:6px;padding:8px;font-size:11px;">
+              <span style="color:#10b981;font-weight:700;">Cron: 0 8,13,20 * * *</span><br>
+              <span style="color:var(--text3);">Auto-refresh at 8am, 1pm, 8pm UTC daily</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monday reset + weekly cycle -->
+    <div style="background:var(--card);border-radius:16px;padding:24px;margin-bottom:28px;border:1px solid var(--border);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:20px;color:var(--accent);">Weekly Lifecycle (Monday Reset Logic)</div>
+
+      <div style="display:flex;gap:0;overflow-x:auto;">
+        <div style="min-width:130px;text-align:center;padding:16px 8px;border-right:2px dashed var(--border);">
+          <div style="font-size:22px;margin-bottom:6px;">🗑️</div>
+          <div style="font-weight:700;font-size:11px;color:#ef4444;">Step 1</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Monday detected<br>deleteOldKeys()<br>purges tracker_* &amp;<br>club_data_* older<br>than last week</div>
+        </div>
+        <div style="min-width:130px;text-align:center;padding:16px 8px;border-right:2px dashed var(--border);">
+          <div style="font-size:22px;margin-bottom:6px;">📡</div>
+          <div style="font-weight:700;font-size:11px;color:var(--accent);">Step 2</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Fetch all 600<br>Strava club<br>activities (3 pages<br>x 200)</div>
+        </div>
+        <div style="min-width:130px;text-align:center;padding:16px 8px;border-right:2px dashed var(--border);">
+          <div style="font-size:22px;margin-bottom:6px;">✂️</div>
+          <div style="font-weight:700;font-size:11px;color:#8b5cf6;">Step 3</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Split feed at<br>WEEKLY_ESTIMATE<br>(50): top = this<br>week, rest = last</div>
+        </div>
+        <div style="min-width:130px;text-align:center;padding:16px 8px;border-right:2px dashed var(--border);">
+          <div style="font-size:22px;margin-bottom:6px;">🏷️</div>
+          <div style="font-weight:700;font-size:11px;color:#10b981;">Step 4</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Fingerprint each<br>activity:<br>firstname|lastname<br>|name|dist|time</div>
+        </div>
+        <div style="min-width:130px;text-align:center;padding:16px 8px;border-right:2px dashed var(--border);">
+          <div style="font-size:22px;margin-bottom:6px;">💾</div>
+          <div style="font-weight:700;font-size:11px;color:#f59e0b;">Step 5</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Seed tracker_ &amp;<br>club_data_ for<br>both this and<br>last week in KV</div>
+        </div>
+        <div style="min-width:130px;text-align:center;padding:16px 8px;border-right:2px dashed var(--border);">
+          <div style="font-size:22px;margin-bottom:6px;">🔄</div>
+          <div style="font-weight:700;font-size:11px;color:var(--accent);">Tue–Sun</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Incremental mode:<br>fetch top 50 only,<br>add new fingerprints,<br>update KV payload</div>
+        </div>
+        <div style="min-width:130px;text-align:center;padding:16px 8px;">
+          <div style="font-size:22px;margin-bottom:6px;">📱</div>
+          <div style="font-weight:700;font-size:11px;color:#10b981;">App reads</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">GET /club-data<br>returns cached KV<br>payload — sub-50ms<br>response</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Environment variables table -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:12px;">Environment Variables (Cloudflare Secrets)</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Variable</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Value</th>
+            <th style="text-align:left;padding:6px 4px;color:var(--text2);">Used by</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:var(--text1);">STRAVA_CLIENT_ID</td>
+            <td style="padding:6px 4px;color:var(--text3);">161984 (public)</td>
+            <td style="padding:6px 4px;color:var(--text3);">Both workers</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:#ef4444;">STRAVA_CLIENT_SECRET</td>
+            <td style="padding:6px 4px;color:var(--text3);">🔒 Secret</td>
+            <td style="padding:6px 4px;color:var(--text3);">Both workers</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:6px 4px;color:#ef4444;">BOT_REFRESH_TOKEN</td>
+            <td style="padding:6px 4px;color:var(--text3);">🔒 Secret (bootstrap)</td>
+            <td style="padding:6px 4px;color:var(--text3);">Worker 2</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 4px;color:#ef4444;">ADMIN_KEY</td>
+            <td style="padding:6px 4px;color:var(--text3);">🔒 Random string</td>
+            <td style="padding:6px 4px;color:var(--text3);">Worker 2 /fetch-now</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:12px;">Response Shape — /club-data</div>
+        <pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:10px;color:var(--text2);overflow:auto;">{
+  "lastFetchedAt": "2026-03-21T20:00:00Z",
+  "weekLabel":     "w/c 16 Mar",
+  "weekStart":     "2026-03-16",
+  "weekEnd":       "2026-03-22",
+  "memberCount":   12,
+  "totalActivities": 31,
+  "members": [
+    {
+      "name":           "Amit K.",
+      "rideCount":      3,
+      "totalDistance":  216.1,
+      "totalElevation": 1240,
+      "totalMovingTime": 28800,
+      "avgSpeed":       27.1,
+      "movingTimeFormatted": "8h 0m",
+      "activities": [
+        {
+          "name":         "Morning Ride",
+          "distance":     72.0,
+          "movingTime":   9600,
+          "elevationGain": 410,
+          "averageSpeed": 27.0,
+          "type":         "Ride",
+          "startDate":    "2026-03-18T07:30:00Z"
+        }
+      ]
+    }
+  ]
+}</pre>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 8 — SERVICES
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="services" style="background:var(--card);">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-icon">🔧</div>
+      <div>
+        <div class="section-title">iOS Services Layer</div>
+        <div class="section-sub">@Observable singletons that connect UI to data, auth, and network</div>
+      </div>
+    </div>
+
+    <!-- Service dependency diagram -->
+    <div style="background:var(--bg);border-radius:16px;padding:24px;margin-bottom:28px;border:1px solid var(--border);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:16px;color:var(--accent);">Service Dependency Graph</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-width:700px;margin:0 auto;">
+
+        <div style="text-align:center;background:rgba(99,102,241,.1);border:1.5px solid var(--accent);border-radius:10px;padding:10px;font-weight:700;font-size:13px;color:var(--accent);">
+          DCC_Weekly_ActivitiesApp (SwiftUI App entry point)
+        </div>
+        <div style="text-align:center;font-size:18px;color:var(--text3);">↓ .environment()</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+          <div style="text-align:center;background:rgba(99,102,241,.1);border:1.5px solid var(--accent);border-radius:8px;padding:8px;font-size:11px;font-weight:700;color:var(--accent);">CloudDataFetcher</div>
+          <div style="text-align:center;background:rgba(139,92,246,.1);border:1.5px solid #8b5cf6;border-radius:8px;padding:8px;font-size:11px;font-weight:700;color:#8b5cf6;">UserAuthService</div>
+          <div style="text-align:center;background:rgba(16,185,129,.1);border:1.5px solid #10b981;border-radius:8px;padding:8px;font-size:11px;font-weight:700;color:#10b981;">InsightsViewModel</div>
+        </div>
+        <div style="text-align:center;font-size:18px;color:var(--text3);">↕ uses</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+          <div style="text-align:center;background:rgba(245,158,11,.1);border:1.5px solid #f59e0b;border-radius:8px;padding:8px;font-size:11px;color:#f59e0b;font-weight:700;">ClubCodeAuthService</div>
+          <div style="text-align:center;background:rgba(245,158,11,.1);border:1.5px solid #f59e0b;border-radius:8px;padding:8px;font-size:11px;color:#f59e0b;font-weight:700;">BiometricAuth</div>
+          <div style="text-align:center;background:rgba(239,68,68,.1);border:1.5px solid #ef4444;border-radius:8px;padding:8px;font-size:11px;color:#ef4444;font-weight:700;">ClubDataService</div>
+          <div style="text-align:center;background:rgba(239,68,68,.1);border:1.5px solid #ef4444;border-radius:8px;padding:8px;font-size:11px;color:#ef4444;font-weight:700;">KeychainHelper</div>
+        </div>
+        <div style="text-align:center;font-size:18px;color:var(--text3);">↓ network</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="text-align:center;background:rgba(16,185,129,.1);border:1.5px dashed #10b981;border-radius:8px;padding:8px;font-size:11px;color:#10b981;">Cloudflare Worker /club-data</div>
+          <div style="text-align:center;background:rgba(99,102,241,.1);border:1.5px dashed var(--accent);border-radius:8px;padding:8px;font-size:11px;color:var(--accent);">Cloudflare Worker /exchange /refresh</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Service cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-top:3px solid var(--accent);">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);margin-bottom:4px;">CloudDataFetcher</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">@Observable — primary data service</div>
+        <ul class="data-list">
+          <li>Fetches <code>/club-data</code> and <code>/club-data?weekOffset=-1</code></li>
+          <li>Decodes JSON into CloudDataResponse Codable</li>
+          <li>Persists to caches/ directory as JSON files</li>
+          <li>Loads cached data on cold launch (immediate UI)</li>
+          <li>Exposes: currentData, lastWeekData, isLoading, errorMessage</li>
+          <li>refreshData() triggers parallel async fetches</li>
+          <li>weekOffset parameter allows historical lookup</li>
+        </ul>
+        <div style="margin-top:12px;padding:10px;background:var(--card);border-radius:8px;font-size:11px;color:var(--text3);">
+          <strong style="color:var(--text2);">Key method:</strong> <code>fetchClubData(weekOffset:)</code> → async → sets @MainActor published state
+        </div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-top:3px solid #8b5cf6;">
+        <div style="font-weight:700;font-size:14px;color:#8b5cf6;margin-bottom:4px;">UserAuthService</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">@Observable — Strava OAuth lifecycle</div>
+        <ul class="data-list">
+          <li>Builds Strava OAuth URL with client ID, scope, redirect</li>
+          <li>Handles <code>dcc-weekly://oauth</code> deep link callback</li>
+          <li>Calls Worker <code>POST /exchange</code> with auth code</li>
+          <li>Stores access/refresh tokens + expiry in Keychain</li>
+          <li>Calls Worker <code>POST /refresh</code> on expiry (5-min buffer)</li>
+          <li>logout() clears Keychain + UserDefaults auth flags</li>
+          <li>Exposes: isAuthenticated, athleteName, accessToken (computed)</li>
+        </ul>
+        <div style="margin-top:12px;padding:10px;background:var(--card);border-radius:8px;font-size:11px;color:var(--text3);">
+          <strong style="color:var(--text2);">Key method:</strong> <code>handleOAuthCallback(url:)</code> → async → calls /exchange → stores Keychain
+        </div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-top:3px solid #10b981;">
+        <div style="font-weight:700;font-size:14px;color:#10b981;margin-bottom:4px;">InsightsViewModel</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">@Observable — analytics and chart data</div>
+        <ul class="data-list">
+          <li>Consumes CloudDataFetcher.currentData</li>
+          <li>buildMemberStats() → [MemberStats] sorted + ranked</li>
+          <li>computeRiderStats() → [RiderStats] with efficiency scores</li>
+          <li>weekOverWeekDelta() → comparison vs lastWeekData</li>
+          <li>topRider, totalClubDistance, avgSpeed computeds</li>
+          <li>Drives all chart data in InsightsView and AnalysisView</li>
+        </ul>
+        <div style="margin-top:12px;padding:10px;background:var(--card);border-radius:8px;font-size:11px;color:var(--text3);">
+          <strong style="color:var(--text2);">Key computed:</strong> memberStats: [MemberStats] — recalculated whenever currentData changes
+        </div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-top:3px solid #f59e0b;">
+        <div style="font-weight:700;font-size:14px;color:#f59e0b;margin-bottom:4px;">ClubCodeAuthService</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">@Observable — first-layer entry gate</div>
+        <ul class="data-list">
+          <li>Validates user-entered string against hardcoded club code</li>
+          <li>Sets UserDefaults.isClubCodeAuthenticated = true on match</li>
+          <li>Exposes: isAuthenticated Bool</li>
+          <li>No network calls — entirely local comparison</li>
+          <li>Persists between app launches (UserDefaults)</li>
+        </ul>
+        <div style="margin-top:12px;padding:10px;background:var(--card);border-radius:8px;font-size:11px;color:var(--text3);">
+          Club code acts as a lightweight "members-only" gate before any data is shown.
+        </div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-top:3px solid #ef4444;">
+        <div style="font-weight:700;font-size:14px;color:#ef4444;margin-bottom:4px;">BiometricAuth</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">LocalAuthentication wrapper — Face ID / Touch ID</div>
+        <ul class="data-list">
+          <li>Calls LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)</li>
+          <li>Falls back to device passcode if biometrics unavailable</li>
+          <li>authenticate() → async → Bool (success/fail)</li>
+          <li>canUseBiometrics → Bool (checks LAContext.canEvaluatePolicy)</li>
+          <li>biometricType → String ("Face ID" / "Touch ID" / "Passcode")</li>
+          <li>Triggered on each app foreground if isBiometricEnabled = true</li>
+        </ul>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:20px;border-top:3px solid #6366f1;">
+        <div style="font-weight:700;font-size:14px;color:#6366f1;margin-bottom:4px;">ClubDataService</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Low-level HTTP helper for club data fetching</div>
+        <ul class="data-list">
+          <li>Constructs URLRequest for Worker /club-data endpoint</li>
+          <li>Handles URLSession data task with async/await</li>
+          <li>Returns raw Data for decoding by CloudDataFetcher</li>
+          <li>Throws typed errors: NetworkError, DecodingError</li>
+          <li>Used by CloudDataFetcher — not called directly by UI</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 9 — FILES REFERENCE
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="files">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-icon">📄</div>
+      <div>
+        <div class="section-title">Complete File Reference</div>
+        <div class="section-sub">Every source file, its responsibility, and key interfaces</div>
+      </div>
+    </div>
+
+    <!-- File table -->
+    <div style="background:var(--card);border-radius:16px;overflow:hidden;border:1px solid var(--border);">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr style="background:var(--bg);">
+            <th style="padding:12px 16px;text-align:left;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);">File</th>
+            <th style="padding:12px 16px;text-align:left;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);">Layer</th>
+            <th style="padding:12px 16px;text-align:left;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);">Responsibility</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">DCC_Weekly_ActivitiesApp.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">Entry</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">App entry point. Creates and injects all @Observable services via .environment(). Sets up initial route via RootView.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">RootView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Root navigation controller. Reads auth state to decide which view to show (ClubCode → Biometric → Login → Dashboard). Contains profile menu with all sheet triggers.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">AdaptiveDashboardRouter.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Reads horizontalSizeClass; routes to ProfessionalDashboardView (compact) or IPadDashboardView (regular). Single source of truth for adaptive layout.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">ProfessionalDashboardView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">iPhone main dashboard with 4 tabs (Main, Leaderboard, Insights, Analysis). Hosts all primary data-display views.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">IPadDashboardView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">iPad split-column layout. Left rail navigation, right content area. Same 4 tabs as iPhone but uses NavigationSplitView for multi-column layout.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">ClubCodeLoginView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">Auth UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">First-run gate. Accepts club code input, calls ClubCodeAuthService.validate(). Animates success transition to BiometricGateView.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">BiometricGateView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">Auth UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Optional biometric enrollment screen. Shown once after club code. If enrolled, triggers on each app foreground launch.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">LoginView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">Auth UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Strava OAuth connect screen. Presents ASWebAuthenticationSession with Strava authorize URL. Handles callback via UserAuthService.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">InsightsView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Charts and analytics tab. Bar charts (distance), ring charts (effort), weekly trend sparklines. Powered by InsightsViewModel.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">InsightsViewModel.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-green">Service</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">@Observable VM. Builds MemberStats[], RiderStats[], week-over-week deltas, and all computed chart data from CloudDataFetcher output.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">CloudDataFetcher.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-green">Service</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Primary data service. Fetches /club-data for current and last week, caches to disk, provides currentData + lastWeekData to all VMs.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">UserAuthService.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-green">Service</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Strava OAuth lifecycle: authorize URL, /exchange, /refresh, Keychain token storage, token expiry checks, logout.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">ClubDataService.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-green">Service</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Low-level HTTP layer for Worker calls. URLSession + async/await. Returns raw Data to CloudDataFetcher for decoding.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">StravaConfigModel.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-yellow">Config</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">App-wide constants: clientID, workerURL, redirectURI, OAuth scope. Single source of truth for all Strava configuration.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">DesignSystem.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-yellow">Config</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Spacing enum, color tokens, typography scales, animation presets. All UI uses these constants for consistent design language.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">WorkerKVDashboardView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Admin sheet. Fetches and displays live KV cache state for current + last week. Shows per-rider distance, rides, speed, moving time. Accessible from profile menu.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">RiderAnalysisView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Deep-dive sheet per rider. Activities list, performance radar chart, comparison vs. leader. Receives MemberStats as input.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">PerformanceDashboardView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Debug/diagnostic sheet. Shows app memory usage, fetch timings, API latency stats. Accessible from profile menu.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">CrashErrorView.swift</td>
+            <td style="padding:10px 16px;"><span class="badge badge-blue">UI</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Full-screen error recovery UI. Shown when critical data fetch fails. Displays error description + Retry button.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">cloudflare-club-data-worker.js</td>
+            <td style="padding:10px 16px;"><span class="badge" style="background:rgba(245,158,11,.2);color:#f59e0b;">Backend</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Cloudflare Worker. Fetches Strava club activities, aggregates by member, caches in KV. Monday reset + 2-week bounded storage. Cron 3x/day.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;color:var(--accent);font-family:monospace;">cloudflare-workerworker.js</td>
+            <td style="padding:10px 16px;"><span class="badge" style="background:rgba(245,158,11,.2);color:#f59e0b;">Backend</span></td>
+            <td style="padding:10px 16px;color:var(--text2);">Cloudflare Worker. Stateless OAuth token exchange (/exchange) and refresh (/refresh). Holds STRAVA_CLIENT_SECRET.</td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════════════════════════════════ -->
+<footer style="background:var(--bg);border-top:1px solid var(--border);padding:40px 0;text-align:center;">
+  <div class="container">
+    <div style="font-size:28px;margin-bottom:12px;">🚴</div>
+    <div style="font-weight:700;font-size:16px;color:var(--text1);margin-bottom:6px;">DCC Weekly Activities</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Architecture Documentation — Generated March 2026</div>
+    <div style="display:flex;justify-content:center;gap:24px;font-size:11px;color:var(--text3);">
+      <span>Swift 6 · SwiftUI</span>
+      <span>·</span>
+      <span>Cloudflare Workers</span>
+      <span>·</span>
+      <span>Strava API v3</span>
+      <span>·</span>
+      <span>iOS 17+</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     JAVASCRIPT — Tab switching + smooth interactions
+═══════════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Tab switching for all tabbed components ─────────────────────────────────
+function switchTab(containerId, tabId, el) {
+  // Hide all panes in this container
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.querySelectorAll('.tab-pane').forEach(function(p) {
+    p.classList.remove('active');
+  });
+  // Show the selected pane
+  const pane = document.getElementById(tabId);
+  if (pane) pane.classList.add('active');
+
+  // Update tab button styles
+  el.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(function(b) {
+    b.classList.remove('active');
+  });
+  el.classList.add('active');
+}
+
+// ── Flow step hover highlight ───────────────────────────────────────────────
+document.querySelectorAll('.flow-step').forEach(function(step) {
+  step.addEventListener('mouseenter', function() {
+    this.style.transform = 'scale(1.04)';
+    this.style.transition = 'transform .15s ease';
+  });
+  step.addEventListener('mouseleave', function() {
+    this.style.transform = 'scale(1)';
+  });
+});
+
+// ── Collapsible metric detail cards ────────────────────────────────────────
+document.querySelectorAll('.metric-card').forEach(function(card) {
+  card.addEventListener('click', function() {
+    this.classList.toggle('expanded');
+  });
+});
+
+// ── Sticky nav active link highlight on scroll ──────────────────────────────
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+
+window.addEventListener('scroll', function() {
+  let current = '';
+  sections.forEach(function(section) {
+    const sectionTop = section.getBoundingClientRect().top;
+    if (sectionTop <= 80) {
+      current = section.getAttribute('id');
+    }
+  });
+  navLinks.forEach(function(link) {
+    link.style.color = '';
+    link.style.fontWeight = '';
+    if (link.getAttribute('href') === '#' + current) {
+      link.style.color = 'var(--accent)';
+      link.style.fontWeight = '700';
+    }
+  });
+}, { passive: true });
+
+// ── Fade-in on scroll (IntersectionObserver) ───────────────────────────────
+const observer = new IntersectionObserver(function(entries) {
+  entries.forEach(function(entry) {
+    if (entry.isIntersecting) {
+      entry.target.style.opacity = '1';
+      entry.target.style.transform = 'translateY(0)';
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.05 });
+
+document.querySelectorAll('.screen-card, .metric-card').forEach(function(el) {
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(20px)';
+  el.style.transition = 'opacity .4s ease, transform .4s ease';
+  observer.observe(el);
+});
+</script>
+
+</body>
+</html>
