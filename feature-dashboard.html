@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC Weekly Activities — Feature Dashboard</title>
+<style>
+  :root {
+    --bg: #0D0D0D;
+    --surface: #1A1A1A;
+    --surface-el: #242424;
+    --accent: #FC4C02;
+    --accent2: #FF8C42;
+    --saffron: #F59E0B;
+    --green: #10B981;
+    --blue: #1E40AF;
+    --text: #FFFFFF;
+    --text2: #8E8E93;
+    --text3: #9CA3AF;
+    --success: #34C759;
+    --error: #FF3B30;
+    --info: #3B82F6;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ─────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--accent) 50%, var(--saffron) 100%);
+    padding: 60px 24px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 80px;
+    background: linear-gradient(transparent, var(--bg));
+  }
+  .hero h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.5px; }
+  .hero p { font-size: 1.1rem; opacity: 0.9; margin-top: 8px; }
+  .hero .badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 16px;
+  }
+
+  /* ── Role Toggle ────────────────────────────────── */
+  .role-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px 16px 8px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+  }
+  .role-btn {
+    padding: 10px 24px;
+    border-radius: 24px;
+    border: 2px solid var(--surface-el);
+    background: var(--surface);
+    color: var(--text2);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .role-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .role-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+
+  /* ── Container ──────────────────────────────────── */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 16px 80px; }
+
+  /* ── Section ────────────────────────────────────── */
+  .section {
+    margin-top: 40px;
+    animation: fadeUp 0.4s ease both;
+  }
+  .section.admin-only { display: none; }
+  .section.admin-only.show { display: block; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title .icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  /* ── Steps ──────────────────────────────────────── */
+  .steps {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
+  }
+  .step-card {
+    flex: 0 0 260px;
+    scroll-snap-align: start;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    border-left: 4px solid var(--accent);
+    position: relative;
+  }
+  .step-num {
+    position: absolute;
+    top: 12px; right: 16px;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--surface-el);
+  }
+  .step-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+  .step-card p { font-size: 0.9rem; color: var(--text2); }
+
+  /* ── Tabs (interactive) ─────────────────────────── */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 4px;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 12px 8px;
+    text-align: center;
+    border-radius: 12px;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .tab-btn.active { background: var(--accent); color: white; }
+  .tab-btn:hover:not(.active) { background: var(--surface-el); color: var(--text); }
+  .tab-btn .tab-icon { display: block; font-size: 1.2rem; margin-bottom: 2px; }
+
+  .tab-panel { display: none; margin-top: 16px; }
+  .tab-panel.active { display: block; animation: fadeUp 0.3s ease both; }
+
+  /* ── Feature Cards ──────────────────────────────── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 640px) {
+    .feature-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .feature-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: default;
+  }
+  .feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .feature-card h4 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .feature-card p { font-size: 0.85rem; color: var(--text2); margin-bottom: 8px; }
+  .access-tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: var(--surface-el);
+    color: var(--text3);
+  }
+
+  /* ── Chart Explainer ────────────────────────────── */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 640px) {
+    .chart-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .chart-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    border-top: 3px solid var(--accent);
+  }
+  .chart-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+  .chart-card .what { font-size: 0.85rem; color: var(--saffron); margin-bottom: 6px; }
+  .chart-card .how { font-size: 0.85rem; color: var(--text2); }
+
+  /* ── Icon Legend ─────────────────────────────────── */
+  .legend-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 0.85rem;
+  }
+  .legend-icon {
+    font-size: 1.3rem;
+    width: 32px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  /* ── Quick Ref ──────────────────────────────────── */
+  .ref-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .ref-table th {
+    text-align: left;
+    padding: 12px 16px;
+    background: var(--surface);
+    font-size: 0.85rem;
+    color: var(--text2);
+    font-weight: 600;
+    border-radius: 8px 8px 0 0;
+  }
+  .ref-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--surface-el);
+    font-size: 0.9rem;
+  }
+  .ref-table td:first-child { color: var(--text); font-weight: 500; }
+  .ref-table td:last-child { color: var(--saffron); }
+  .ref-table tr:hover td { background: var(--surface); }
+
+  /* ── Error States ───────────────────────────────── */
+  .state-list { list-style: none; }
+  .state-list li {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    align-items: flex-start;
+  }
+  .state-list .situation { font-weight: 600; min-width: 160px; flex-shrink: 0; }
+  .state-list .result { color: var(--text2); }
+
+  /* ── Feature Request Callout ────────────────────── */
+  .callout {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-el) 100%);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .callout-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+    width: 48px; height: 48px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .callout h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+  .callout p { font-size: 0.9rem; color: var(--text2); }
+
+  /* ── Footer ─────────────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 40px 16px;
+    color: var(--text3);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--surface-el);
+    margin-top: 60px;
+  }
+
+  /* ── Scrollbar ──────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface-el); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ HERO ═══════════════════════ -->
+<div class="hero">
+  <h1>DCC Weekly Activities</h1>
+  <p>Complete Feature Guide for Riders & Admins</p>
+  <span class="badge">iOS + iPadOS + tvOS</span>
+</div>
+
+<!-- ═══════════════════════ ROLE TOGGLE ════════════════ -->
+<div class="role-toggle">
+  <button class="role-btn active" onclick="setRole('rider')">Rider</button>
+  <button class="role-btn" onclick="setRole('admin')">Admin / Coach</button>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════════════ GETTING IN ═════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon" style="background:#1E40AF;">&#128274;</span>
+    Getting Into the App
+  </div>
+  <div class="steps">
+    <div class="step-card">
+      <span class="step-num">1</span>
+      <h3>Club Code Login</h3>
+      <p>Enter your club code (<strong style="color:var(--saffron)">DCC2026</strong>) and your name, then tap <strong>Enter</strong>.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">2</span>
+      <h3>Face ID / Touch ID</h3>
+      <p>Authenticate with biometrics to unlock the dashboard. On subsequent launches you skip straight here.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">3</span>
+      <h3>Dashboard</h3>
+      <p>You're in! 5 tabs across the top, your club data loads automatically from the server.</p>
+    </div>
+  </div>
+  <p style="margin-top:12px;font-size:0.85rem;color:var(--text3)"><strong>Logging out:</strong> Tap your profile avatar (top-right circle) &rarr; Log Out</p>
+</div>
+
+<!-- ═══════════════════════ THE 5 TABS ════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--accent);">&#128690;</span>
+    The 5 Tabs
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab(this,'ride')"><span class="tab-icon">&#128690;</span>Ride</button>
+    <button class="tab-btn" onclick="showTab(this,'overview')"><span class="tab-icon">&#128202;</span>Overview</button>
+    <button class="tab-btn" onclick="showTab(this,'leaderboard')"><span class="tab-icon">&#127942;</span>Leaders</button>
+    <button class="tab-btn" onclick="showTab(this,'insights')"><span class="tab-icon">&#9889;</span>Insights</button>
+    <button class="tab-btn" onclick="showTab(this,'analysis')"><span class="tab-icon">&#128200;</span>Analysis</button>
+  </div>
+
+  <!-- Tab 1: Ride -->
+  <div class="tab-panel active" id="tab-ride">
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>&#128203; Weekly Report Table</h4>
+        <p>Full stats for every rider: distance, rides, avg speed, elevation, trend arrows, and previous week comparison. Scroll horizontally for all columns.</p>
+        <span class="access-tag">Visible immediately</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128200; Club Totals</h4>
+        <p>Animated counters showing total club distance, total rides, and active riders this week.</p>
+        <span class="access-tag">Top of the tab</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128197; Week Picker</h4>
+        <p>Navigate between the current week and up to 4 weeks back. Data refreshes when you change weeks.</p>
+        <span class="access-tag">Tap arrows around week label</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Overview -->
+  <div class="tab-panel" id="tab-overview">
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>&#127919; My Performance</h4>
+        <p>4 animated rings showing your distance, speed, elevation, and ride count relative to the club. Auto-identifies you by your login name.</p>
+        <span class="access-tag">Top section</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128170; Strength Bars</h4>
+        <p>Visual bars showing where you rank in each metric vs the club average.</p>
+        <span class="access-tag">Below the rings</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128101; Compare With</h4>
+        <p>Side-by-side comparison with any rider you choose. Tap the dropdown to select who to compare against.</p>
+        <span class="access-tag">Rider dropdown</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#129351; Me vs Top 3</h4>
+        <p>Your stats compared to the top 3 riders with grouped bar charts.</p>
+        <span class="access-tag">Card below comparison</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#127919; Performance Zones</h4>
+        <p>Best and worst performers across Speed, Elevation, Distance, and Rides with animated progress bars.</p>
+        <span class="access-tag">Bottom section</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Leaderboard -->
+  <div class="tab-panel" id="tab-leaderboard">
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>&#128202; Club Overview Cards</h4>
+        <p>4 summary cards: Total Distance, Total Rides, Active Riders, Average per Rider.</p>
+        <span class="access-tag">Top of tab</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#127942; Ranked Rider List</h4>
+        <p>All riders ranked by total distance. Medal badges for top 3. Each row shows rank, name, distance, rides, avg speed, elevation.</p>
+        <span class="access-tag">Scroll down</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128269; Rider Drill-Down</h4>
+        <p>Tap any rider row to open their full analysis: celebration card, charts, coaching tips, What-If scenarios.</p>
+        <span class="access-tag">Tap any rider row</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 4: Insights -->
+  <div class="tab-panel" id="tab-insights">
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>&#128204; Rider Chip Selector</h4>
+        <p>Horizontal scrollable pills to pick which rider to analyse. Scroll left/right, tap a name.</p>
+        <span class="access-tag">Top of tab</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#127881; Celebration Card</h4>
+        <p>Personalised hero card with rank badge, animated stat counters (distance, rides, elevation), and motivational message.</p>
+        <span class="access-tag">After selecting a rider</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#127878; Confetti Burst</h4>
+        <p>60-particle animated celebration effect — fires automatically when you select a rider.</p>
+        <span class="access-tag">Automatic</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128269; View Full Analysis</h4>
+        <p>Opens charts, coaching tips, and What-If scenarios for the selected rider.</p>
+        <span class="access-tag">Tap "View Full Analysis"</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 5: Analysis -->
+  <div class="tab-panel" id="tab-analysis">
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>&#128202; Distance Bar Chart</h4>
+        <p>Horizontal bars comparing all riders. Selected rider highlighted in orange, others muted.</p>
+        <span class="access-tag">Scroll down in Analysis</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128200; Speed vs Elevation Scatter</h4>
+        <p>Scatter plot with 4 quadrants: Fast &amp; Climbing, Steady Climber, Fast &amp; Flat, Endurance Base.</p>
+        <span class="access-tag">Below bar chart</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128376; Radar Chart</h4>
+        <p>5-axis spider chart (Distance, Speed, Elevation, Rides, Consistency) showing your values vs club average.</p>
+        <span class="access-tag">Below scatter plot</span>
+      </div>
+      <div class="feature-card">
+        <h4>&#128161; Coaching Tips</h4>
+        <p>AI-generated tips showing your gaps vs leaders with What-If scenarios: "If you ride 2 more times, you'd move up to #3."</p>
+        <span class="access-tag">Bottom section</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ CHARTS EXPLAINED ══════════ -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--saffron);">&#128202;</span>
+    How to Read the Charts
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h4>Distance Bar Chart</h4>
+      <div class="what">Who rode the most this week</div>
+      <div class="how">Longer bar = more km. Your bar is highlighted in orange.</div>
+    </div>
+    <div class="chart-card">
+      <h4>Radar Chart</h4>
+      <div class="what">Your overall profile vs the club average</div>
+      <div class="how">Bigger shape = stronger. Dashed line is the club average. If your shape is inside the dashed line, that's an area to improve.</div>
+    </div>
+    <div class="chart-card">
+      <h4>Speed vs Elevation Scatter</h4>
+      <div class="what">Whether you're a climber, speedster, or all-rounder</div>
+      <div class="how">Top-right = fast and climbing. Bottom-left = building endurance. Your dot is the largest.</div>
+    </div>
+    <div class="chart-card">
+      <h4>Performance Zones</h4>
+      <div class="what">Who's best and worst in each metric</div>
+      <div class="how">Green bars = top performers. Muted bars = room for improvement.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ FEATURE REQUEST ═══════════ -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--accent);">&#128161;</span>
+    Feature Requests
+  </div>
+  <div class="callout">
+    <div class="callout-icon">&#128161;</div>
+    <div>
+      <h3>Got an idea? Tell us from inside the app.</h3>
+      <p>Tap the orange lightbulb button (bottom-right, visible on every tab) to open the feature request form. Type or use voice-to-text to describe your idea. It goes straight to our backlog.</p>
+    </div>
+  </div>
+  <div class="feature-grid" style="margin-top:16px;">
+    <div class="feature-card">
+      <h4>&#9997;&#65039; Text Input</h4>
+      <p>Type your request (10&ndash;1000 characters) with real-time character count.</p>
+      <span class="access-tag">Tap lightbulb &rarr; type</span>
+    </div>
+    <div class="feature-card">
+      <h4>&#127908; Voice Input</h4>
+      <p>Tap the mic icon to dictate. Speech is transcribed in real-time. Edit before submitting.</p>
+      <span class="access-tag">Tap mic icon</span>
+    </div>
+    <div class="feature-card">
+      <h4>&#9201; Rate Limit</h4>
+      <p>60-second cooldown between submissions to prevent accidental duplicates.</p>
+      <span class="access-tag">Automatic</span>
+    </div>
+    <div class="feature-card">
+      <h4>&#128246; Works Offline</h4>
+      <p>Queued locally when offline. Auto-sends when connectivity returns.</p>
+      <span class="access-tag">Automatic</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ ADMIN FEATURES ════════════ -->
+<div class="section admin-only" id="admin-section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--error);">&#128272;</span>
+    Admin &amp; Coach Features
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card" style="border-left:3px solid var(--error);">
+      <h4>&#128200; Worst Performer Analysis</h4>
+      <p>Composite weighted score (Distance 35%, Rides 20%, Elevation 20%, Moving Time 10%, Speed 10%). Shows stats grid, detailed verdict, and motivational coaching suggestions.</p>
+      <span class="access-tag">Dashboard mode selector</span>
+    </div>
+    <div class="feature-card" style="border-left:3px solid var(--info);">
+      <h4>&#9889; Performance Stats Dashboard</h4>
+      <p>Chronological log of app performance events, category breakdowns with bar charts, mini stat cards with animated counters.</p>
+      <span class="access-tag">Profile avatar &rarr; Performance Stats</span>
+    </div>
+    <div class="feature-card" style="border-left:3px solid var(--green);">
+      <h4>&#128250; Apple TV Token</h4>
+      <p>Copy the auth token as JSON to clipboard for pasting into the tvOS app for big-screen display.</p>
+      <span class="access-tag">Profile avatar &rarr; Copy Token for Apple TV</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ IPAD LAYOUT ═══════════════ -->
+<div class="section admin-only" id="ipad-section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--blue);">&#128187;</span>
+    iPad Layout
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h4>Sidebar Navigation</h4>
+      <p>4 tabs in a sidebar: This Week, Leaderboard, Insights, Analysis. Adapts live when resizing in Split View or Stage Manager.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Two-Column Main View</h4>
+      <p>Left 2/3: podium (top 3) + full ranked table. Right 1/3: best ride card + highlight stats (longest ride, fastest rider, most active).</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ ICON LEGEND ═══════════════ -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--surface-el);">&#128218;</span>
+    What the Icons Mean
+  </div>
+  <div class="legend-grid">
+    <div class="legend-item"><span class="legend-icon">&#8593;</span> Rode more than last week (&gt;10% up)</div>
+    <div class="legend-item"><span class="legend-icon">&#8595;</span> Rode less than last week (&gt;10% down)</div>
+    <div class="legend-item"><span class="legend-icon">&#8594;</span> About the same (within 10%)</div>
+    <div class="legend-item"><span class="legend-icon">&#9733;</span> New rider &mdash; no previous data</div>
+    <div class="legend-item"><span class="legend-icon">&#129351;</span> Medal badges for top 3</div>
+    <div class="legend-item"><span class="legend-icon">&#128293;</span> Great performance</div>
+    <div class="legend-item"><span class="legend-icon" style="color:var(--error);">-23km</span> Gap badge &mdash; distance to leader</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ OFFLINE / ERRORS ══════════ -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--surface-el);">&#9888;&#65039;</span>
+    Offline &amp; Error States
+  </div>
+  <ul class="state-list">
+    <li><span class="situation">No internet on launch</span><span class="result">Shows cached data or error screen with Retry button</span></li>
+    <li><span class="situation">Offline feature request</span><span class="result">Queued locally, auto-sends on reconnect</span></li>
+    <li><span class="situation">No activities this week</span><span class="result">"No Activities Yet" empty state</span></li>
+    <li><span class="situation">Only 1 rider</span><span class="result">"Need More Riders" &mdash; comparisons need 2+</span></li>
+    <li><span class="situation">Biometric fails</span><span class="result">Retry button + log out option</span></li>
+    <li><span class="situation">Invalid club code</span><span class="result">"Contact your DCC admin for the correct code"</span></li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════ QUICK REFERENCE ═══════════ -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon" style="background:var(--green);">&#128269;</span>
+    Quick Reference
+  </div>
+  <table class="ref-table">
+    <thead><tr><th>I want to...</th><th>Go to...</th></tr></thead>
+    <tbody>
+      <tr><td>See my rank</td><td>Leaderboard tab &rarr; find your name</td></tr>
+      <tr><td>Compare myself to others</td><td>Overview tab &rarr; "Compare With"</td></tr>
+      <tr><td>See coaching tips</td><td>Insights tab &rarr; select name &rarr; "View Full Analysis"</td></tr>
+      <tr><td>View charts</td><td>Analysis tab or tap any rider in Leaderboard</td></tr>
+      <tr><td>Check last week</td><td>Ride tab &rarr; left arrow on week picker</td></tr>
+      <tr><td>Submit a feature idea</td><td>Orange lightbulb button (any tab)</td></tr>
+      <tr><td>Log out</td><td>Profile avatar (top-right) &rarr; Log Out</td></tr>
+      <tr><td>See club totals</td><td>Leaderboard tab &rarr; top 4 cards</td></tr>
+      <tr><td>See detailed stats table</td><td>Ride tab &rarr; scroll horizontally</td></tr>
+      <tr><td>Check app performance</td><td>Profile avatar &rarr; Performance Stats</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════ FOOTER ════════════════════ -->
+<div class="footer">
+  Desi Cycling Club &bull; DCC Weekly Activities &bull; Built with SwiftUI
+</div>
+
+</div><!-- /container -->
+
+<script>
+function setRole(role) {
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.admin-only').forEach(s => {
+    s.classList.toggle('show', role === 'admin');
+  });
+}
+
+function showTab(btn, id) {
+  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+}
+</script>
+</body>
+</html>
