@@ -15,41 +15,38 @@ final class CloudDataFetcher {
     static let shared = CloudDataFetcher()
 
     var members: [CloudMemberData] = []
+    var previousWeekMembers: [CloudMemberData] = []
     var lastFetchedAt: Date?
+    var weekStart: Date?
+    var weekEnd: Date?
     var isLoading = false
     var errorMessage: String?
 
-    private let dataURL = "https://dcc-strava.amit-r-kamat.workers.dev/club-data"
+    private let baseURL = "https://dcc-strava.amit-r-kamat.workers.dev/club-data"
 
     private init() {}
 
-    func fetchData() async {
+    /// Fetches the current (or offset) week's club data and the previous week
+    /// in parallel so dashboard stats can show week-over-week trends without
+    /// needing the Strava OAuth two-week fetch.
+    func fetchData(weekOffset: Int = 0) async {
         isLoading = true
         errorMessage = nil
 
+        async let current  = fetchWeek(offset: weekOffset)
+        async let previous = fetchWeek(offset: weekOffset - 1)
+
         do {
-            guard let url = URL(string: dataURL) else {
-                errorMessage = "Invalid data URL"
-                isLoading = false
-                return
-            }
+            let (currentResp, previousResp) = try await (current, previous)
+            members             = currentResp.members
+            previousWeekMembers = previousResp.members
 
-            let (data, response) = try await URLSession.shared.data(from: url)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                errorMessage = "Server returned an error. Pull to refresh."
-                isLoading = false
-                return
-            }
-
-            let decoded = try JSONDecoder().decode(CloudDataResponse.self, from: data)
-            members = decoded.members
-
-            if let dateStr = decoded.lastFetchedAt {
-                let formatter = ISO8601DateFormatter()
+            let formatter = ISO8601DateFormatter()
+            if let dateStr = currentResp.lastFetchedAt {
                 lastFetchedAt = formatter.date(from: dateStr)
             }
+            weekStart = currentResp.weekStart.flatMap { Self.parseDayString($0) }
+            weekEnd   = currentResp.weekEnd.flatMap   { Self.parseDayString($0) }
 
             errorMessage = nil
         } catch {
@@ -59,17 +56,51 @@ final class CloudDataFetcher {
         isLoading = false
     }
 
+    private func fetchWeek(offset: Int) async throws -> CloudDataResponse {
+        var components = URLComponents(string: baseURL)!
+        if offset != 0 {
+            components.queryItems = [URLQueryItem(name: "weekOffset", value: String(offset))]
+        }
+        guard let url = components.url else { throw URLError(.badURL) }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(CloudDataResponse.self, from: data)
+    }
+
+    private static func parseDayString(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .iso8601)
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: s)
+    }
+
     /// Convert cloud data to the existing Activity model format for compatibility
     /// with existing chart/table/leaderboard views.
     func toActivities() -> [Activity] {
+        Self.toActivities(members: members, weekStart: weekStart)
+    }
+
+    func toPreviousWeekActivities() -> [Activity] {
+        let prevStart = weekStart.map { Calendar(identifier: .iso8601).date(byAdding: .day, value: -7, to: $0) ?? $0 }
+        return Self.toActivities(members: previousWeekMembers, weekStart: prevStart)
+    }
+
+    private static func toActivities(members: [CloudMemberData], weekStart: Date?) -> [Activity] {
+        let formatter = ISO8601DateFormatter()
+        let fallback  = weekStart ?? Date()
         var activities: [Activity] = []
         for member in members {
             for act in (member.activities ?? []) {
+                let date = act.startDate.flatMap { formatter.date(from: $0) } ?? fallback
                 activities.append(Activity(
                     memberName: member.name,
                     activityName: act.name,
                     distance: act.distance,
-                    date: Date(),
+                    date: date,
                     averageSpeed: act.averageSpeed,
                     elevationGain: Double(act.elevationGain),
                     movingTime: act.movingTime,
@@ -85,6 +116,9 @@ final class CloudDataFetcher {
 
 struct CloudDataResponse: Codable {
     let lastFetchedAt: String?
+    let weekLabel: String?
+    let weekStart: String?
+    let weekEnd: String?
     let memberCount: Int?
     let totalActivities: Int?
     let members: [CloudMemberData]
@@ -109,4 +143,5 @@ struct CloudActivityData: Codable {
     let elevationGain: Int
     let averageSpeed: Double
     let type: String
+    let startDate: String?
 }
