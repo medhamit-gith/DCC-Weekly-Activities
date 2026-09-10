@@ -14,21 +14,21 @@ struct MemberStatsChartView: View {
     let dateRange: (start: Date, end: Date)? // Optional date range from fetched data
     let athleteProfile: AthleteProfile
     let activities: [Activity]
-    
+
     @State private var selectedMetric: ChartMetric = .totalKM
     @State private var selectedMember: MemberStats? // For navigation
     @State private var selectedMetricForMode: MetricType?
-    
+
     // MARK: - Metric Configuration
-    
+
     enum MetricType: String, CaseIterable, Identifiable {
         case totalDistance = "Total Distance"
         case totalRides = "Total Rides"
         case totalElevation = "Total Elevation"
         case activeMembers = "Active Members"
-        
+
         var id: String { rawValue }
-        
+
         var icon: String {
             switch self {
             case .totalDistance: return "road.lanes"
@@ -37,7 +37,7 @@ struct MemberStatsChartView: View {
             case .activeMembers: return "person.3.fill"
             }
         }
-        
+
         var color: Color {
             switch self {
             case .totalDistance: return .blue
@@ -46,7 +46,7 @@ struct MemberStatsChartView: View {
             case .activeMembers: return .purple
             }
         }
-        
+
         func getValue(from stats: [MemberStats]) -> String {
             switch self {
             case .totalDistance:
@@ -60,13 +60,13 @@ struct MemberStatsChartView: View {
             }
         }
     }
-    
+
     enum ChartMetric: String, CaseIterable {
         case totalKM = "Total KM"
         case totalRides = "Total Rides"
         case avgSpeed = "Avg Speed"
         case elevation = "Elevation"
-        
+
         var icon: String {
             switch self {
             case .totalKM: return "road.lanes"
@@ -75,7 +75,7 @@ struct MemberStatsChartView: View {
             case .elevation: return "mountain.2.fill"
             }
         }
-        
+
         var unit: String {
             switch self {
             case .totalKM: return "km"
@@ -85,9 +85,9 @@ struct MemberStatsChartView: View {
             }
         }
     }
-    
+
     // MARK: - Computed Properties
-    
+
     var topPerformers: [MemberStats] {
         // Show top 10 or all if less than 10
         let sorted = stats.sorted { stat1, stat2 in
@@ -104,28 +104,28 @@ struct MemberStatsChartView: View {
         }
         return Array(sorted.prefix(10))
     }
-    
+
     var clubTotals: ClubTotals {
         ClubTotals(from: stats)
     }
-    
+
     private var dateInterval: DateInterval? {
         guard let range = dateRange else { return nil }
         return DateInterval(start: range.start, end: range.end)
     }
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                
+
                 // MARK: Date Range Header
                 DateRangeHeaderView(dateRange: dateInterval)
                     .padding(.top, 8)
-                
+
                 Divider()
-                
+
                 // MARK: Week Summary Cards (Now Tappable!)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                     ForEach([MetricType.totalDistance, .totalRides, .totalElevation, .activeMembers]) { metric in
@@ -141,9 +141,9 @@ struct MemberStatsChartView: View {
                     }
                 }
                 .padding(.horizontal)
-                
+
                 Divider()
-                
+
                 // MARK: Metric Selector
                 Picker("Metric", selection: $selectedMetric) {
                     ForEach(ChartMetric.allCases, id: \.self) { metric in
@@ -153,13 +153,13 @@ struct MemberStatsChartView: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
-                
+
                 // MARK: Main Bar Chart (Grouped Current/Previous Week)
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Top Performers")
                         .font(.headline)
                         .padding(.horizontal)
-                    
+
                     // Club totals annotation
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Club total: \(String(format: "%.1f", clubTotals.totalCurrentWeekKM))km this week")
@@ -174,7 +174,7 @@ struct MemberStatsChartView: View {
                     .background(Color(.systemGray6))
                     .cornerRadius(8)
                     .padding(.horizontal)
-                    
+
                     Chart {
                         ForEach(topPerformers) { stat in
                             // Current week bar (solid green)
@@ -194,14 +194,14 @@ struct MemberStatsChartView: View {
                                             .font(.caption2)
                                             .fontWeight(.semibold)
                                             .foregroundStyle(.primary)
-                                        
+
                                         Image(systemName: trendIcon(for: stat.currentWeekTrend))
                                             .font(.system(size: 12))
                                             .foregroundStyle(trendColor(for: stat.currentWeekTrend))
                                     }
                                 }
                             }
-                            
+
                             // Previous week bar (light green) - only for metrics with previous week data
                             if let previousValue = getPreviousWeekValue(for: stat) {
                                 BarMark(
@@ -268,23 +268,23 @@ struct MemberStatsChartView: View {
                     .accessibilityLabel(chartAccessibilityLabel)
                     .accessibilityHint("Tap a bar to view that member's detailed statistics")
                 }
-                
+
                 // Tap instruction
                 Text("Tap any bar to view member details")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
-                
+
                 Divider()
-                
+
                 // MARK: Distance Distribution Chart
                 VStack(alignment: .leading) {
                     Text("Distance Distribution")
                         .font(.headline)
                         .padding(.horizontal)
-                    
+
                     let totalDistance = topPerformers.reduce(0) { $0 + $1.totalKM }
-                    
+
                     Chart(topPerformers) { stat in
                         SectorMark(
                             angle: .value("Distance", stat.totalKM),
@@ -307,7 +307,7 @@ struct MemberStatsChartView: View {
                     }
                     .frame(height: 300)
                     .padding(.horizontal)
-                    
+
                     // Legend with percentages
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
@@ -357,7 +357,7 @@ struct MemberStatsChartView: View {
             )
         }
     }
-    
+
     // MARK: - Accessibility
 
     private var chartAccessibilityLabel: String {
@@ -367,7 +367,7 @@ struct MemberStatsChartView: View {
     }
 
     // MARK: - Chart Tap Overlay
-    
+
     /// Creates an invisible overlay with tap gesture recognizer for bar selection
     private var chartTapOverlay: some View {
         GeometryReader { geometry in
@@ -381,20 +381,20 @@ struct MemberStatsChartView: View {
                 )
         }
     }
-    
+
     /// Handles tap on chart to select member
     private func handleChartTap(at location: CGPoint, in size: CGSize) {
         // Calculate which bar was tapped based on location
         let barWidth = size.width / CGFloat(topPerformers.count)
         let tappedIndex = Int(location.x / barWidth)
-        
+
         if tappedIndex >= 0 && tappedIndex < topPerformers.count {
             selectedMember = topPerformers[tappedIndex]
         }
     }
-    
+
     // MARK: - Helper Methods
-    
+
     private func getValue(for stat: MemberStats) -> Double {
         switch selectedMetric {
         case .totalKM:
@@ -407,7 +407,7 @@ struct MemberStatsChartView: View {
             return stat.totalElevation
         }
     }
-    
+
     private func getPreviousWeekValue(for stat: MemberStats) -> Double? {
         // Only Distance and Rides have previous week data
         switch selectedMetric {
@@ -419,7 +419,7 @@ struct MemberStatsChartView: View {
             return nil // No previous week data available
         }
     }
-    
+
     private func formatValue(_ value: Double) -> String {
         switch selectedMetric {
         case .totalKM:
@@ -432,9 +432,9 @@ struct MemberStatsChartView: View {
             return String(format: "%.0f", value)
         }
     }
-    
+
     // MARK: - Trend Helpers
-    
+
     private func trendIcon(for trend: MemberStats.TrendDirection) -> String {
         switch trend {
         case .up: return "arrow.up.circle.fill"
@@ -443,7 +443,7 @@ struct MemberStatsChartView: View {
         case .new: return "star.circle.fill"
         }
     }
-    
+
     private func trendColor(for trend: MemberStats.TrendDirection) -> Color {
         switch trend {
         case .up: return .green
@@ -459,17 +459,17 @@ struct MemberStatsChartView: View {
 struct TappableStatCard: View {
     let metric: MemberStatsChartView.MetricType
     let stats: [MemberStats]
-    
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: metric.icon)
                 .font(.title2)
                 .foregroundStyle(metric.color)
-            
+
             Text(metric.getValue(from: stats))
                 .font(.title2)
                 .fontWeight(.bold)
-            
+
             Text(metric.rawValue)
                 .font(.caption)
                 .foregroundStyle(DCCColors.textSecondary)
@@ -494,17 +494,17 @@ struct StatCard: View {
     let value: String
     let icon: String
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundStyle(color)
-            
+
             Text(value)
                 .font(.title2)
                 .fontWeight(.bold)
-            
+
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -522,21 +522,21 @@ struct StatCard: View {
 struct MemberDetailView: View {
     let memberStats: MemberStats
     let allStats: [MemberStats]
-    
+
     private var memberRanking: Int {
         let sorted = allStats.sorted { $0.totalKM > $1.totalKM }
         return (sorted.firstIndex(where: { $0.id == memberStats.id }) ?? 0) + 1
     }
-    
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 // Header
                 headerCard
-                
+
                 // Stats Grid
                 statsGrid
-                
+
                 // Activities List
                 activitiesSection
             }
@@ -546,7 +546,7 @@ struct MemberDetailView: View {
         .navigationTitle(memberStats.memberName)
         .navigationBarTitleDisplayMode(.inline)
     }
-    
+
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -559,9 +559,9 @@ struct MemberDetailView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("#\(memberRanking)")
                         .font(.title)
@@ -598,7 +598,7 @@ struct MemberDetailView: View {
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
     }
-    
+
     private var statsGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
             statCard(
@@ -607,35 +607,35 @@ struct MemberDetailView: View {
                 icon: "road.lanes",
                 color: Color.dccSaffron
             )
-            
+
             statCard(
                 title: "Avg Speed",
                 value: String(format: "%.1f km/h", memberStats.avgSpeed),
                 icon: "speedometer",
                 color: Color.dccGreen
             )
-            
+
             statCard(
                 title: "Total Elevation",
                 value: String(format: "%.0f m", memberStats.totalElevation),
                 icon: "mountain.2.fill",
                 color: Color.dccBlue
             )
-            
+
             statCard(
                 title: "Activities",
                 value: "\(memberStats.totalRides)",
-                icon: "figure.run",
+                icon: "figure.outdoor.cycle",
                 color: Color.purple
             )
         }
     }
-    
+
     private var activitiesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recent Activities")
                 .font(.headline)
-            
+
             ForEach(memberStats.rides.prefix(10)) { activity in
                 activityRow(activity)
             }
@@ -645,17 +645,17 @@ struct MemberDetailView: View {
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
     }
-    
+
     private func statCard(title: String, value: String, icon: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
                 .font(.title3)
                 .foregroundStyle(color)
-            
+
             Text(value)
                 .font(.title3)
                 .fontWeight(.bold)
-            
+
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -665,26 +665,26 @@ struct MemberDetailView: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
     }
-    
+
     private func activityRow(_ activity: Activity) -> some View {
         HStack(spacing: 12) {
             Image(systemName: activityIcon(for: activity.type))
                 .foregroundStyle(Color.dccGreen)
                 .frame(width: 32)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(activity.activityName)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                
+
                 Text(formatDate(activity.date))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            
+
             Spacer()
-            
+
             Text(String(format: "%.1f km", activity.distance))
                 .font(.subheadline)
                 .fontWeight(.semibold)
@@ -692,7 +692,7 @@ struct MemberDetailView: View {
         }
         .padding(.vertical, 8)
     }
-    
+
     private func activityIcon(for type: String) -> String {
         switch type.lowercased() {
         case "ride": return "bicycle"
@@ -702,14 +702,14 @@ struct MemberDetailView: View {
         default: return "figure.outdoor.cycle"
         }
     }
-    
+
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
-    
+
     private var trendIcon: String {
         switch memberStats.currentWeekTrend {
         case .up: return "arrow.up.circle.fill"
@@ -718,7 +718,7 @@ struct MemberDetailView: View {
         case .new: return "star.circle.fill"
         }
     }
-    
+
     private var trendColor: Color {
         switch memberStats.currentWeekTrend {
         case .up: return .green
@@ -772,18 +772,18 @@ struct MemberDetailView: View {
             type: "Ride"
         )
     ]
-    
+
     let stats = [
         MemberStats(memberName: "John Doe", activities: [sampleActivities[0]]),
         MemberStats(memberName: "Jane Smith", activities: [sampleActivities[1]]),
         MemberStats(memberName: "Bob Wilson", activities: [sampleActivities[2]]),
     ]
-    
+
     let dateRange = (
         start: Calendar.current.date(byAdding: .day, value: -7, to: Date())!,
         end: Date()
     )
-    
+
     let profile = AthleteProfile(
         id: 12345,
         firstname: "John",
@@ -793,7 +793,7 @@ struct MemberDetailView: View {
         state: nil,
         country: "India"
     )
-    
+
     return NavigationStack {
         MemberStatsChartView(
             stats: stats,
