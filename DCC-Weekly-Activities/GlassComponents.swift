@@ -14,7 +14,7 @@ import SwiftUI
 // MARK: - Glass Member Stats Card
 struct GlassMemberCard: View {
     let member: MemberStats
-    
+
     var body: some View {
         HStack(spacing: 16) {
             // Member info
@@ -22,12 +22,12 @@ struct GlassMemberCard: View {
                 Text(member.memberName)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                
+
                 HStack(spacing: 12) {
-                    Label("\(member.totalRides)", systemImage: "figure.run")
+                    Label("\(member.totalRides)", systemImage: "figure.outdoor.cycle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    
+
                     if member.avgSpeed > 0 {
                         Label(String(format: "%.1f km/h", member.avgSpeed), systemImage: "speedometer")
                             .font(.caption)
@@ -35,16 +35,16 @@ struct GlassMemberCard: View {
                     }
                 }
             }
-            
+
             Spacer()
-            
+
             // Distance (prominent)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(String(format: "%.1f", member.totalKM))
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.dccSaffron)
-                
+
                 Text("km")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -68,7 +68,7 @@ struct GlassActivityRow: View {
         f.timeStyle = .none
         return f
     }()
-    
+
     var body: some View {
         HStack(spacing: 12) {
             // Activity icon (decorative — type is conveyed in the text below)
@@ -79,28 +79,28 @@ struct GlassActivityRow: View {
                 .background(Color.dccGreen.opacity(0.1))
                 .clipShape(Circle())
                 .accessibilityHidden(true)
-            
+
             // Activity details
             VStack(alignment: .leading, spacing: 4) {
                 Text(activity.activityName)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                
+
                 Text(activity.memberName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            
+
             Spacer()
-            
+
             // Distance and date
             VStack(alignment: .trailing, spacing: 4) {
                 Text(String(format: "%.1f km", activity.distance))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.dccSaffron)
-                
+
                 Text(Self.dateFormatter.string(from: activity.date))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -112,7 +112,7 @@ struct GlassActivityRow: View {
             in: .rect(cornerRadius: 12)
         )
     }
-    
+
     private var activityIcon: String {
         switch activity.type.lowercased() {
         case "ride":
@@ -136,7 +136,7 @@ struct GlassSummaryCard: View {
     let subtitle: String
     let icon: String
     let color: Color
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -144,15 +144,15 @@ struct GlassSummaryCard: View {
                     .font(.title3)
                     .foregroundStyle(color)
                     .accessibilityHidden(true)
-                
+
                 Spacer()
             }
-            
+
             Text(value)
                 .font(.title)
                 .fontWeight(.bold)
                 .foregroundStyle(.primary)
-            
+
             Text(subtitle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -170,12 +170,12 @@ struct GlassSummaryCard: View {
 struct DCCGlassButtonStyle: ButtonStyle {
     let tintColor: Color
     let isProminent: Bool
-    
+
     init(tintColor: Color = .orange, isProminent: Bool = false) {
         self.tintColor = tintColor
         self.isProminent = isProminent
     }
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, 24)
@@ -205,7 +205,7 @@ extension ButtonStyle where Self == DCCGlassButtonStyle {
     static var dccGlass: DCCGlassButtonStyle {
         DCCGlassButtonStyle()
     }
-    
+
     static func dccGlass(tintColor: Color, isProminent: Bool = false) -> DCCGlassButtonStyle {
         DCCGlassButtonStyle(tintColor: tintColor, isProminent: isProminent)
     }
@@ -217,26 +217,26 @@ struct GlassErrorView: View {
     let isAuthError: Bool
     let onRetry: () -> Void
     let onLogInAgain: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(Color.dccSaffron)
                 .accessibilityLabel("Error")
-            
+
             VStack(spacing: 8) {
                 Text("Oops!")
                     .font(.title2)
                     .fontWeight(.bold)
-                
+
                 Text(error)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
-            
+
             if isAuthError {
                 Button("Log In Again") {
                     onLogInAgain()
@@ -260,13 +260,13 @@ struct GlassErrorView: View {
 // MARK: - Glass Loading View
 struct GlassLoadingView: View {
     let message: String
-    
+
     var body: some View {
         VStack(spacing: 16) {
             ProgressView()
                 .scaleEffect(1.2)
                 .tint(Color.dccSaffron)
-            
+
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -284,7 +284,7 @@ struct GlassWelcomeCard: View {
     let onConnect: () -> Void
     let biometricType: BiometricAuth.BiometricType
     let isAuthenticating: Bool
-    
+
     var body: some View {
         VStack(spacing: 24) {
             // Logo/Icon area
@@ -299,17 +299,17 @@ struct GlassWelcomeCard: View {
                         )
                     )
                     .accessibilityHidden(true)
-                
+
                 Text("DCC Weekly Activities")
                     .font(.title)
                     .fontWeight(.bold)
-                
+
                 Text("Track your club's running achievements")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            
+
             // Connect button
             Button(action: {
                 #if DEBUG
@@ -338,7 +338,7 @@ struct GlassWelcomeCard: View {
             .disabled(isAuthenticating)
             .opacity(isAuthenticating ? 0.6 : 1.0)
             .buttonStyle(.dccGlass(tintColor: Color.dccSaffron, isProminent: true))
-            
+
             // Biometric info
             if biometricType != .none {
                 HStack(spacing: 8) {
