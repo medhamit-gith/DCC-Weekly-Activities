@@ -1,0 +1,35 @@
+# Deploy config for the DCC club-data Worker.
+#
+# The repo previously had none, so `wrangler deploy` would have uploaded the
+# script with NO bindings — dropping STRAVA_KV, the vars and the cron trigger,
+# and breaking the Worker at the first env.STRAVA_KV.get(). Values below were
+# read back from the live `dcc-strava` deployment.
+#
+#   npx wrangler deploy
+#
+# Secrets are NOT stored here. Set them once per environment:
+#   npx wrangler secret put STRAVA_CLIENT_SECRET
+#   npx wrangler secret put BOT_REFRESH_TOKEN
+
+name = "dcc-strava"
+main = "DCC-Weekly-Activities.xcodeproj/cloudflare-club-data-worker.js"
+
+# Confirm against the dashboard before deploying — changing this can alter
+# runtime behaviour. This is the Worker's creation date, not a verified value.
+compatibility_date = "2026-02-17"
+
+[vars]
+STRAVA_CLIENT_ID = "161984"
+STRAVA_CLUB_ID = "212760"
+
+# Binding name and namespace title intentionally differ: the binding the code
+# reads is STRAVA_KV, the namespace it points at is titled DCC_DATA.
+[[kv_namespaces]]
+binding = "STRAVA_KV"
+id = "4cafbb31fd684186b5f1f0f105100153"
+
+# Load-bearing, not a cache warmer: this is what populates the first-seen
+# activity registry that dates every activity. Without it, week attribution
+# stops working. Verify it is still attached after deploying.
+[triggers]
+crons = ["0 * * * *"]
