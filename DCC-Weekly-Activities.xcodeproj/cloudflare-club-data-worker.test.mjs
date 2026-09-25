@@ -158,5 +158,52 @@ const k6b = Object.keys(reg6b)[0];
 check('unmatched activity still dated now', new Date(reg6b[k6b]) > new Date(Date.now() - 60000),
   reg6b[k6b]);
 
+// ── 7. OAuth token endpoints the iOS/tvOS clients depend on ────────────────
+// Regression guard: these 404'd after the club-data script was deployed over
+// the token-exchange script, which blocked sign-in and token refresh in both
+// apps. UserAuthService.swift and TVRootView.swift post to these paths.
+console.log('\n7. /exchange and /refresh');
+const postJSON = (e, path, body) => worker.fetch(
+  new Request('https://w.dev' + path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) }), e);
+
+let tokenCall = null;
+globalThis.fetch = async (url, init) => {
+  if (String(url).includes('oauth/token')) {
+    tokenCall = new URLSearchParams(init.body);
+    return new Response(JSON.stringify({
+      access_token: 'AT', refresh_token: 'RT', expires_at: 1790000000,
+      token_type: 'Bearer', athlete: { id: 1, secret: 'must not leak' },
+    }), { status: 200 });
+  }
+  return new Response('[]', { status: 200 });
+};
+
+e = env();
+r = await postJSON(e, '/exchange', { code: 'auth-code-123' });
+check('POST /exchange returns 200 (was 404)', r.status === 200, `got ${r.status}`);
+let body = await r.json();
+check('exchange uses authorization_code grant',
+  tokenCall.get('grant_type') === 'authorization_code', tokenCall.get('grant_type'));
+check('exchange forwards the code', tokenCall.get('code') === 'auth-code-123');
+check('exchange sends the client secret', tokenCall.get('client_secret') === 's');
+check('returns the token pair', body.access_token === 'AT' && body.refresh_token === 'RT');
+check('does not leak extra Strava fields', body.athlete === undefined,
+  JSON.stringify(Object.keys(body)));
+
+r = await postJSON(e, '/refresh', { refresh_token: 'old-RT' });
+check('POST /refresh returns 200 (was 404)', r.status === 200, `got ${r.status}`);
+check('refresh uses refresh_token grant',
+  tokenCall.get('grant_type') === 'refresh_token', tokenCall.get('grant_type'));
+check('refresh forwards the token', tokenCall.get('refresh_token') === 'old-RT');
+
+r = await postJSON(e, '/exchange', { nope: 1 });
+check('missing code rejected with 400', r.status === 400, `got ${r.status}`);
+r = await worker.fetch(new Request('https://w.dev/exchange'), e);
+// Falls through to the generic 404 rather than a 405; both clients only POST.
+check('GET /exchange is not served', r.status === 404, `got ${r.status}`);
+globalThis.fetch = realFetch;
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

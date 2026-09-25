@@ -332,6 +332,53 @@ function jsonResponse(data, status = 200) {
 function errorResponse(message, status = 400) {
   return jsonResponse({ error: message }, status);
 }
+// ── Strava OAuth token grants (used by /exchange and /refresh) ──────────────
+// These endpoints belong to the iOS and tvOS clients, which post here rather
+// than to Strava directly so the client secret never ships in an app binary.
+//
+// They previously lived in a second Worker script. Both scripts were deployed
+// to the SAME Worker name, so whichever went up last silently replaced the
+// other's routes - and when the club-data script won, /exchange and /refresh
+// started returning 404, which blocked sign-in and token refresh in both apps.
+// They are merged here so one deploy can no longer clobber the other.
+async function stravaTokenGrant(env, extraParams) {
+  const params = new URLSearchParams({
+    client_id: env.STRAVA_CLIENT_ID,
+    client_secret: env.STRAVA_CLIENT_SECRET,
+    ...extraParams
+  });
+  const res = await fetch(STRAVA_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString()
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return errorResponse(data.message ?? "Strava token request failed", res.status);
+  }
+  // Return only the fields the clients need, never the raw Strava response.
+  return jsonResponse({
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: data.expires_at,
+    token_type: data.token_type
+  });
+}
+
+async function readJsonField(request, field) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return { error: errorResponse("Invalid JSON body") };
+  }
+  const value = body?.[field];
+  if (!value || typeof value !== "string") {
+    return { error: errorResponse(`Missing or invalid '${field}' field`) };
+  }
+  return { value };
+}
+
 async function fetchAndCacheWeek(env, weekOffset) {
   const { start: weekStart, end: weekEnd } = getWeekRange(weekOffset);
   const cacheKey = `club_data_week_${isoWeekKey(weekStart)}`;
@@ -508,6 +555,21 @@ https://amitrkamat.atlassian.net/browse/${jiraData.key}`
         return jsonResponse({ success: false, error: "Internal error" }, 500);
       }
     }
+    if (url.pathname === "/exchange" && request.method === "POST") {
+      const { value: code, error } = await readJsonField(request, "code");
+      if (error) return error;
+      return stravaTokenGrant(env, { code, grant_type: "authorization_code" });
+    }
+
+    if (url.pathname === "/refresh" && request.method === "POST") {
+      const { value: refreshToken, error } = await readJsonField(request, "refresh_token");
+      if (error) return error;
+      return stravaTokenGrant(env, {
+        refresh_token: refreshToken,
+        grant_type: "refresh_token"
+      });
+    }
+
     if (request.method !== "GET") {
       return errorResponse("Method not allowed", 405);
     }
