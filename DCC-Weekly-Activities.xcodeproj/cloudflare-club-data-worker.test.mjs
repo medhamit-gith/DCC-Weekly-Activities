@@ -126,6 +126,37 @@ globalThis.fetch = async (url) => {
 e = env();
 await call(e, '/club-data?force=1');
 check('stops at MAX_ACTIVITY_PAGES (5)', pages === 5, `fetched ${pages} pages`);
+globalThis.fetch = realFetch;   // restore, or later tests see the paging mock
+
+// ── 6. Deploying the new fingerprint must not re-date existing activities ───
+console.log('\n6. v1 -> v2 fingerprint migration preserves first-seen dates');
+e = env();
+// Deliberately in an EARLIER week than today, so inheriting it must keep the
+// ride out of the current week's totals.
+const oldSeen = '2026-09-08T08:00:00.000Z';
+// Two v1 entries for ONE ride, because the rider renamed it mid-week.
+await e.STRAVA_KV.put('activity_registry', JSON.stringify({
+  'JalajM_Morning Ride_42000_6000': oldSeen,
+  'JalajM_Epic climb!_42000_6000': '2026-09-09T19:30:00.000Z',   // same ride, renamed
+}));
+CLUB_ACTIVITIES = [act('Jalaj','M','Epic climb!', 42, 6000, 250)];
+d = await (await call(e, '/club-data?force=1')).json();
+const reg6 = JSON.parse(await e.STRAVA_KV.get('activity_registry'));
+const v2key = Object.keys(reg6).find(k => k.startsWith('v2:'));
+check('a v2 entry was created', !!v2key, Object.keys(reg6).join(' | '));
+check('it inherited the EARLIEST v1 sighting, not now', reg6[v2key] === oldSeen,
+  `expected ${oldSeen}, got ${reg6[v2key]}`);
+check('so the ride is not counted into the current week', d.memberCount === 0,
+  `memberCount ${d.memberCount} - ride wrongly re-dated into this week`);
+
+// Without a v1 match, a genuinely new activity is still stamped now.
+e = env();
+CLUB_ACTIVITIES = [act('Ram','A','Brand new ride', 12, 2000, 40)];
+await call(e, '/club-data?force=1');
+const reg6b = JSON.parse(await e.STRAVA_KV.get('activity_registry'));
+const k6b = Object.keys(reg6b)[0];
+check('unmatched activity still dated now', new Date(reg6b[k6b]) > new Date(Date.now() - 60000),
+  reg6b[k6b]);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -132,7 +132,36 @@ function activityFingerprint(act) {
   const distance = Math.round(act.distance || 0);
   const movingTime = act.moving_time || 0;
   const elevation = Math.round(act.total_elevation_gain || 0);
-  return `${athlete}_${sport}_${distance}_${movingTime}_${elevation}`;
+  return `v2:${athlete}_${sport}_${distance}_${movingTime}_${elevation}`;
+}
+
+// ── Migration off the v1 fingerprint ────────────────────────────────────────
+// v1 keys were `${athlete}_${title}_${distance}_${movingTime}`. Changing the
+// format orphans every existing entry, so without this every activity Strava
+// returns would look new on the first run after deploy, be stamped with the
+// deploy time, and pile into whatever week that happened to be.
+//
+// A v1 title could itself contain underscores, so those keys are read from the
+// ends: first field is the athlete, last two are distance and moving time.
+// Those three re-identify an activity well enough to inherit its date.
+function legacyLookupKey(act) {
+  const athlete = `${act.athlete?.firstname || ""}${act.athlete?.lastname || ""}`;
+  return `${athlete}_${act.distance || 0}_${act.moving_time || 0}`;
+}
+
+function buildLegacyIndex(registry) {
+  const index = new Map();
+  for (const [key, seenAt] of Object.entries(registry)) {
+    if (key.startsWith("v2:")) continue;
+    const parts = key.split("_");
+    if (parts.length < 4) continue;
+    const lookup = `${parts[0]}_${parts[parts.length - 2]}_${parts[parts.length - 1]}`;
+    const existing = index.get(lookup);
+    // A rename left several v1 entries for one ride; the earliest is the true
+    // first sighting, so that is the one worth carrying forward.
+    if (!existing || seenAt < existing) index.set(lookup, seenAt);
+  }
+  return index;
 }
 async function fetchClubActivities(clubID, accessToken, weekStart, env) {
   const activities = [];
@@ -169,11 +198,15 @@ async function fetchClubActivities(clubID, accessToken, weekStart, env) {
     console.error("Failed to load activity registry:", e.message);
   }
   const now = (new Date()).toISOString();
+  const legacyIndex = buildLegacyIndex(registry);
   let registryChanged = false;
+  let migrated = 0;
   for (const act of allRaw) {
     const fp = activityFingerprint(act);
     if (!registry[fp]) {
-      registry[fp] = now;
+      const inherited = legacyIndex.get(legacyLookupKey(act));
+      if (inherited) migrated++;
+      registry[fp] = inherited || now;
       registryChanged = true;
     }
     const firstSeen = registry[fp];
@@ -193,7 +226,10 @@ async function fetchClubActivities(clubID, accessToken, weekStart, env) {
       await env.STRAVA_KV.put(registryKey, JSON.stringify(pruned), {
         expirationTtl: REGISTRY_RETENTION_DAYS * 86400
       });
-      console.log(`Activity registry updated: ${Object.keys(pruned).length} entries`);
+      console.log(
+        `Activity registry updated: ${Object.keys(pruned).length} entries` +
+        (migrated > 0 ? ` (${migrated} dates inherited from v1 fingerprints)` : "")
+      );
     } catch (e) {
       console.error("Failed to save activity registry:", e.message);
     }
