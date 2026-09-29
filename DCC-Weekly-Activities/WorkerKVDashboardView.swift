@@ -85,13 +85,13 @@ final class WorkerKVDashboardViewModel {
                 return nil
             }
             let decoded = try JSONDecoder().decode(CloudDataResponse.self, from: data)
-            return snapshot(from: decoded)
+            return snapshot(from: decoded, offset: offset)
         } catch {
             return nil
         }
     }
 
-    private func snapshot(from r: CloudDataResponse) -> WeekSnapshot {
+    private func snapshot(from r: CloudDataResponse, offset: Int) -> WeekSnapshot {
         let fetchedAt: Date? = r.lastFetchedAt.flatMap { isoFormatter.date(from: $0) }
         let totalKm = r.members.reduce(0.0) { $0 + $1.totalDistance }
         let top = r.members.max(by: { $0.totalDistance < $1.totalDistance })
@@ -108,10 +108,12 @@ final class WorkerKVDashboardViewModel {
             )
         }
 
-        // Derive weekStart / weekEnd from the response or fall back to empty strings
-        let weekStart = r.weekStart ?? ""
+        // CloudDataResponse (the worker's /club-data payload) carries no week
+        // boundary fields, so derive them locally from the same weekOffset
+        // already used to request this snapshot.
+        let weekStart = mondayWeekStart(offset: offset)
         let weekEnd   = weekEndFromStart(weekStart)
-        let label     = r.members.isEmpty ? labelFromWeekStart(weekStart) : labelFromWeekStart(weekStart)
+        let label     = labelFromWeekStart(weekStart)
 
         return WeekSnapshot(
             id:               weekStart,
@@ -124,9 +126,26 @@ final class WorkerKVDashboardViewModel {
             topRider:         top?.name,
             topRiderKm:       top?.totalDistance ?? 0,
             lastFetchedAt:    fetchedAt,
-            noDataAvailable:  r.noDataAvailable ?? false,
+            noDataAvailable:  r.members.isEmpty,
             members:          members
         )
+    }
+
+    // Monday-based ISO week start, `offset` whole weeks from the current week
+    // (0 = this week, -1 = last week) — matches the `weekOffset` query param
+    // sent to the worker in fetchWeek(offset:) above.
+    private func mondayWeekStart(offset: Int) -> String {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: Date()),
+              let shifted = calendar.date(byAdding: .day, value: offset * 7, to: weekInterval.start) else {
+            return ""
+        }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: shifted)
     }
 
     // Derive a human label like "w/c 16 Mar" from "2026-03-16"
@@ -542,6 +561,7 @@ struct WorkerKVDashboardView: View {
         .padding(.vertical, 4)
     }
 
+    @ViewBuilder
     private func memberRow(
         _ member: WorkerKVDashboardViewModel.SnapshotMember,
         rank: Int,
@@ -639,13 +659,4 @@ struct WorkerKVDashboardView: View {
                 .fill(.ultraThinMaterial)
         )
     }
-}
-
-// MARK: - Spacing / CornerRadius guard
-// These constants are already defined in the app's DesignSystem.
-// The extension below is a compile-time safety net only — it adds nothing
-// if the value is already declared in DesignSystem.swift.
-
-private extension Spacing {
-    static var xxl: CGFloat { 32 }
 }
