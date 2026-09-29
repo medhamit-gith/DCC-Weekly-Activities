@@ -9,7 +9,11 @@
 
 ## Short Version
 
-This app reads publicly available cycling activity data from your Strava club feed and displays it on your Apple TV. Your Strava access token is stored only on your Apple TV device using tvOS AppStorage. We collect no personal data beyond what Strava returns. We operate no servers that store user information.
+This app displays club cycling activity on your Apple TV. Your Strava access token is stored only on your Apple TV device using tvOS AppStorage. We collect no personal data beyond what Strava returns.
+
+We operate a small server that performs Strava token exchange, so that the app's Strava client secret is never shipped inside the app. The Apple TV app itself does not send it any of your activity data, and offers no sharing.
+
+The club leaderboard shown here is built from members who have opted in to sharing via the iPhone app. If you want your own rides included, or want them removed, use the Club leaderboard screen there.
 
 ---
 
@@ -118,7 +122,7 @@ We do not use:
 | Club activity feed | In-memory (RAM) | No — cleared on app close |
 | Rider stats & charts | In-memory (RAM) | No — cleared on app close |
 
-**No iCloud**, **no Core Data**, **no SQLite**, **no network server storage**.
+**No iCloud**, **no Core Data**, **no SQLite**. The Apple TV app stores none of your data on a server; opting in to leaderboard sharing is done in the iPhone app and is covered by its privacy policy.
 
 ---
 

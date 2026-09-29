@@ -1,6 +1,13 @@
 # Privacy Policy for DCC Weekly Activities
 
-**Last Updated: February 13, 2026**
+**Last Updated: September 29, 2026**
+
+> **Changed in this version.** Strava withdrew its club activity feed on
+> 1 September 2026. The club leaderboard is now built only from members who
+> explicitly choose to share their rides, and for those members some data is
+> stored on our server. Earlier versions of this policy stated that all data
+> stayed on your device; that is no longer accurate for members who opt in.
+> See *Information We Collect* and *Data Storage and Security*.
 
 ## Overview
 
@@ -25,17 +32,36 @@ When you authenticate with Strava, we access:
 - Your membership in the Desi Cycling Club
 
 ### 2. Activity Data
-We retrieve from Strava:
-- Activities posted by Desi Cycling Club members
-- Activity statistics (distance, duration, elevation)
-- Activity dates and times
-- Activity types (ride, run, walk, etc.)
+Strava withdrew its club activity feed on 1 September 2026, so the app can no
+longer read the club's rides from a single account. The leaderboard is now
+built only from members who have chosen to share.
+
+**If you choose to share your rides** (Club leaderboard → "Share my rides"),
+we retrieve from Strava and store on our server:
+- Your first name and last initial, and your Strava athlete ID
+- Your cycling activities: distance, moving time, elevation gain, average speed
+- Each activity's name, type and start time
+
+Non-cycling activities, such as walks and runs, are ignored.
+
+**If you do not share**, we retrieve no activity data about you, and nothing
+about you is stored on our server.
+
+Sharing is always an explicit choice. It never happens as part of signing in,
+and you can stop at any time (see *Your Data Rights*).
 
 ### 3. Authentication Tokens
 We store on your device:
 - Strava OAuth access token
-- Strava OAuth refresh token
+- Strava OAuth refresh token (when you have not opted in to sharing)
 - Token expiration dates
+
+**If you opt in to sharing**, your Strava refresh token is stored on our server
+instead of your device. This is what allows the app to read your rides for the
+leaderboard between sessions, and it grants ongoing read access to your Strava
+activities until you stop sharing or revoke access at
+https://www.strava.com/settings/apps. In its place your device stores a key
+that identifies you to our server.
 
 ### 4. Biometric Data (Optional)
 If you enable biometric authentication:
@@ -54,31 +80,49 @@ We use your information solely to:
 
 ## Data Storage and Security
 
-### Local Storage Only
-- **All data is stored exclusively on your device**
-- We do NOT operate any servers
-- We do NOT upload your data anywhere
-- We do NOT have access to your data
+### Where Your Data Lives
+We operate a small server (a Cloudflare Worker) that supports the app. It
+always handles Strava sign-in, so that the app's Strava client secret is never
+shipped inside the app. What else it holds depends on your choice:
+
+- **If you have not opted in to sharing**, the server stores nothing about you.
+  Your tokens and cached activity data stay on your device.
+- **If you have opted in**, the server also stores your Strava refresh token,
+  your name and athlete ID, and your cycling activity data as listed above.
+
+### Who Can See Your Shared Data
+If you opt in, your name and ride statistics are visible to anyone who can
+reach the club leaderboard. Please treat anything you share as visible to the
+whole club.
 
 ### Security Measures
-- OAuth tokens are stored in iOS Keychain (encrypted)
+- Tokens on your device are stored in the iOS Keychain (encrypted)
 - All network communications use HTTPS
 - Strava authentication follows OAuth 2.0 best practices
-- Biometric authentication uses iOS secure enclave
+- Biometric authentication uses the iOS secure enclave
+- The Strava client secret is held only on our server, never in the app
 
 ### Data Retention
-- Data is cached locally for 7 days
-- You can clear cache anytime by deleting the app
-- Authentication tokens remain until you log out
+- Activity data is cached locally on your device for 7 days
+- On our server, shared activity data is retained for 120 days and then
+  deleted automatically
+- Your stored refresh token is kept until you stop sharing or delete the app's
+  access in Strava
+- If you stop sharing, your token and all of your stored activity data are
+  deleted immediately
 
 ## Data Sharing and Third Parties
 
 ### We Do NOT:
 - Sell your data to anyone
-- Share your data with third parties
+- Pass your data to third parties outside the app and its server
 - Use your data for advertising
 - Track your behavior outside the app
 - Collect analytics or usage statistics
+
+Note that if you choose to share your rides, they are shown to other members
+on the club leaderboard. That is the purpose of sharing, and it is the one
+case where your activity data is visible to other people through this app.
 
 ### Third-Party Services We Use:
 
@@ -103,13 +147,20 @@ You have the right to:
 - Activity data comes directly from Strava
 
 ### Delete Your Data
-- Log out to remove authentication tokens
-- Delete the app to remove all cached data
-- Revoke app access on Strava.com
+- Tap "Stop sharing" on the Club leaderboard screen. This immediately deletes
+  your stored refresh token and every activity we hold for you on our server,
+  and removes you from the leaderboard
+- Log out to remove authentication tokens from your device
+- Delete the app to remove all locally cached data
+- Revoke the app's access at https://www.strava.com/settings/apps. This stops
+  any further reading of your activities; use "Stop sharing" as well if you
+  want the data already stored to be deleted
 
 ### Control Your Data
-- Control what activities are visible by adjusting Strava privacy settings
-- Leave the Desi Cycling Club on Strava to stop appearing in the app
+- Sharing your rides with the leaderboard is off until you turn it on, and you
+  can turn it off again at any time
+- Control which activities exist at all by adjusting your Strava privacy
+  settings
 - Disconnect the app from Strava at any time
 
 ## Children's Privacy
