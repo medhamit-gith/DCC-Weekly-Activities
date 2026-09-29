@@ -17,9 +17,11 @@ final class CloudDataFetcher {
     var members: [CloudMemberData] = []
     var lastFetchedAt: Date?
     var weekLabel: String?
-    /// "observed" when the worker dated activities by first sighting rather than
-    /// by their real start time. Surface this before presenting week totals as exact.
+    /// "strava" since the move to per-rider syncing: these are real ride times.
     var dateSource: String?
+    /// How many riders have opted in. The board covers only them, not all 100
+    /// club members, so the UI should say so rather than implying full coverage.
+    var enrolledCount: Int?
     var isLoading = false
     var errorMessage: String?
 
@@ -68,6 +70,7 @@ final class CloudDataFetcher {
             members = decoded.members
             weekLabel = decoded.weekLabel
             dateSource = decoded.dateSource
+            enrolledCount = decoded.enrolledCount
 
             if let dateStr = decoded.lastFetchedAt {
                 lastFetchedAt = CloudDataFetcher.isoFormatter.date(from: dateStr)
@@ -133,7 +136,7 @@ struct CloudDataResponse: Codable {
     let totalActivities: Int?
     /// "strava" | "observed" | "mixed" — see the worker's header comment.
     let dateSource: String?
-    let registryRetentionDays: Int?
+    let enrolledCount: Int?
     let members: [CloudMemberData]
 }
 

@@ -4,59 +4,59 @@
  * Deployed as the Cloudflare Worker `dcc-strava`
  * (https://dcc-strava.amit-r-kamat.workers.dev).
  *
- * This file was re-synced from the deployed script, which had drifted far ahead
- * of the repository: the committed copy exposed only /club-data and still
- * carried the broken date filter. Deploying that copy would have silently
- * reverted six endpoints and the first-seen registry. Treat this file as the
- * source of truth and deploy from it.
+ * ── How the leaderboard is built (this changed) ──────────────────────────────
+ *   Strava REMOVED GET /clubs/{id}/activities on 1 September 2026, so no token
+ *   can read the whole club's rides any more. That endpoint now 404s with
+ *   "resource.path:invalid", which is what silently emptied the leaderboard.
  *
- * ── How activities are dated (important) ─────────────────────────────────────
- *   Strava's GET /clubs/{id}/activities returns NO start_date and NO activity
- *   id. Week filtering therefore cannot use the ride's real start time.
+ *   The Worker now reads each rider's OWN activity feed instead. Riders opt in
+ *   via POST /enrol; the Worker stores their refresh token and, on an hourly
+ *   cron, syncs a slice of them into per-week KV records that /club-data
+ *   aggregates.
  *
- *   Instead the hourly cron records the first time each activity is observed,
- *   keyed by a fingerprint of its immutable fields, in the KV key
- *   `activity_registry`. That first-seen timestamp becomes the activity's
- *   effective date. Consequences the UI should respect:
- *     • A ride uploaded late is counted in the week it was first SEEN.
- *     • History only reaches back as far as REGISTRY_RETENTION_DAYS.
- *     • The payload's `dateSource` field reports "observed" whenever dates come
- *       from the registry rather than from Strava.
+ *   This is better data than the club feed ever gave: /athlete/activities
+ *   returns a real start_date, so weeks are exact. The first-seen "activity
+ *   registry" that used to stand in for missing dates is gone.
+ *
+ *   The tradeoff: the leaderboard covers only riders who opted in, never the
+ *   full club. `enrolledCount` in the payload is there so the UI can say so.
+ *
+ * ── Privacy ─────────────────────────────────────────────────────────────────
+ *   This Worker stores a Strava refresh token per opted-in rider, which grants
+ *   ongoing read access to their activities. Enrolment must be an explicit
+ *   choice, never a side effect of signing in. POST /leave deletes a rider's
+ *   token and their stored rides. Keep PRIVACY_POLICY.md in step with this.
  *
  * ── Environment variables (Settings → Variables) ─────────────────────────────
  *   STRAVA_CLIENT_ID      = 161984
  *   STRAVA_CLIENT_SECRET  = <Strava client secret>
- *   STRAVA_CLUB_ID        = 212760
- *   BOT_REFRESH_TOKEN     = <club-admin refresh token, bootstrap fallback>
+ *   STRAVA_CLUB_ID        = 212760   (informational only now)
  *
  * ── KV binding ───────────────────────────────────────────────────────────────
  *   STRAVA_KV → the namespace titled "DCC_DATA"
- *     (the binding name and the namespace title differ; this is expected)
- *   Keys: strava_refresh_token, strava_access_token,
- *         strava_access_token_expires, activity_registry,
- *         club_data_week_{YYYY-MM-DD}, features_dashboard_cache
+ *     (binding name and namespace title differ; this is expected)
+ *   Keys: member:{athleteId}            per-rider token + sync state
+ *         week:{YYYY-MM-DD}:{athleteId} that rider's rides for that week
+ *         club_data_week_{YYYY-MM-DD}   cached aggregate
+ *         sync_cursor                   round-robin position
  *
  * ── Endpoints ────────────────────────────────────────────────────────────────
- *   GET  /club-data[?weekOffset=N][&force=1]   per-member weekly aggregates
- *   GET  /diagnostics                          token/club/registry health
+ *   GET  /club-data[?weekOffset=N][&force=1]   leaderboard for a week
+ *   GET  /diagnostics                          enrolment and sync health
+ *   POST /enrol   { refresh_token }            opt a rider in
+ *   POST /leave   { access_token }             opt a rider out, delete data
+ *   POST /exchange, /refresh                   Strava OAuth for the apps
  *   GET  /features, /features-api, /release-notes
  *   POST /feature-request, /github-webhook
  *
  * ── Cron ─────────────────────────────────────────────────────────────────────
- *   "0 * * * *" — hourly. This is what populates the first-seen registry, so
- *   the cron is load-bearing, not merely a cache warmer.
+ *   "0 * * * *" — hourly, syncing MEMBERS_PER_SYNC riders per run so the app
+ *   stays inside Strava's 2000 requests/day budget.
  */
 
 const STRAVA_TOKEN_URL = "https://www.strava.com/api/v3/oauth/token";
 const STRAVA_CLUB_URL = "https://www.strava.com/api/v3/clubs";
 const CACHE_TTL_SECONDS = 3600;
-// Strava's club-activities endpoint is unbounded; cap paging so a busy club
-// cannot exhaust the Worker's subrequest budget in a single invocation.
-const MAX_ACTIVITY_PAGES = 5;
-// Single source of truth for how far back the first-seen registry reaches.
-// Both the prune cutoff and the KV TTL derive from this, and /club-data
-// refuses week offsets older than it can honestly answer.
-const REGISTRY_RETENTION_DAYS = 90;
 function getWeekRange(weekOffset = 0) {
   const now = new Date();
   const dayOfWeek = (now.getUTCDay() + 6) % 7;
@@ -84,157 +84,300 @@ function formatMovingTime(seconds) {
   const m = Math.floor(seconds % 3600 / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
-async function getAccessToken(env) {
-  const nowSec = Math.floor(Date.now() / 1e3);
-  const expiresStr = await env.STRAVA_KV.get("strava_access_token_expires");
-  const expires = expiresStr ? parseInt(expiresStr, 10) : 0;
-  if (expires - nowSec > 300) {
-    const cached = await env.STRAVA_KV.get("strava_access_token");
-    if (cached) return cached;
+// The club-admin bot token (getAccessToken / BOT_REFRESH_TOKEN) was removed
+// with the club feed it served. Each member now authorises for themselves.
+
+// ── Per-member sync ─────────────────────────────────────────────────────────
+// Strava removed GET /clubs/{id}/activities on 1 September 2026, so there is no
+// longer any way for one admin token to read the whole club's rides. Instead
+// each rider opts in, and the Worker reads each of their own activity feeds.
+//
+// This is strictly better data than the club feed ever gave us: /athlete/
+// activities returns a real start_date, so weeks are exact. The first-seen
+// registry that used to stand in for missing dates is gone entirely.
+const MEMBER_PREFIX = "member:";
+const WEEK_PREFIX = "week:";
+// Strava allows 2000 requests/day for the whole app. Syncing every member every
+// hour would blow through that, so each run takes a slice and the cursor moves
+// on - 20/hour covers 100 members roughly every five hours.
+const MEMBERS_PER_SYNC = 20;
+const WEEK_DATA_TTL_DAYS = 120;
+const STRAVA_ATHLETE_URL = "https://www.strava.com/api/v3/athlete";
+const STRAVA_ATHLETE_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
+
+function memberKey(athleteId) {
+  return `${MEMBER_PREFIX}${athleteId}`;
+}
+
+function weekMemberKey(weekStart, athleteId) {
+  return `${WEEK_PREFIX}${isoWeekKey(weekStart)}:${athleteId}`;
+}
+
+function displayName(member) {
+  const last = (member.lastname || "").charAt(0);
+  return last ? `${member.firstname} ${last}.` : `${member.firstname}`.trim();
+}
+
+async function listKeys(env, prefix) {
+  const names = [];
+  let cursor;
+  do {
+    const page = await env.STRAVA_KV.list({ prefix, cursor });
+    names.push(...page.keys.map((k) => k.name));
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  return names;
+}
+
+async function listMembers(env) {
+  const members = [];
+  for (const name of await listKeys(env, MEMBER_PREFIX)) {
+    const raw = await env.STRAVA_KV.get(name);
+    if (!raw) continue;
+    try {
+      members.push(JSON.parse(raw));
+    } catch {
+      console.error(`Unreadable member record: ${name}`);
+    }
   }
-  let refreshToken = await env.STRAVA_KV.get("strava_refresh_token");
-  if (!refreshToken && env.BOT_REFRESH_TOKEN) {
-    refreshToken = env.BOT_REFRESH_TOKEN;
-    await env.STRAVA_KV.put("strava_refresh_token", refreshToken);
+  return members;
+}
+
+async function saveMember(env, member) {
+  await env.STRAVA_KV.put(memberKey(member.athleteId), JSON.stringify(member));
+}
+
+async function getMember(env, athleteId) {
+  const raw = await env.STRAVA_KV.get(memberKey(athleteId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
-  if (!refreshToken) {
-    throw new Error("No Strava refresh token in KV or env. Bootstrap required.");
-  }
-  const params = new URLSearchParams({
+}
+
+/** Strava token grant returning parsed data; throws with Strava's own message. */
+async function stravaTokenData(env, params) {
+  const body = new URLSearchParams({
     client_id: env.STRAVA_CLIENT_ID,
     client_secret: env.STRAVA_CLIENT_SECRET,
-    refresh_token: refreshToken,
-    grant_type: "refresh_token"
+    ...params
   });
   const res = await fetch(STRAVA_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString()
+    body: body.toString()
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message ?? `Strava token request failed (${res.status})`);
+  }
+  return data;
+}
+
+/**
+ * A usable access token for one member.
+ *
+ * Strava rotates the refresh token on every use, so the rotation MUST be
+ * persisted - dropping it locks that member out on the next sync with no way
+ * back except re-authorising.
+ */
+async function memberAccessToken(env, member) {
+  const nowSec = Math.floor(Date.now() / 1e3);
+  if (member.accessToken && (member.accessExpires ?? 0) - nowSec > 300) {
+    return member.accessToken;
+  }
+  const data = await stravaTokenData(env, {
+    refresh_token: member.refreshToken,
+    grant_type: "refresh_token"
+  });
+  member.refreshToken = data.refresh_token ?? member.refreshToken;
+  member.accessToken = data.access_token;
+  member.accessExpires = data.expires_at;
+  await saveMember(env, member);
+  return member.accessToken;
+}
+
+function newMemberKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Opt a rider in. Verifies the token really works before storing anything. */
+async function enrolMember(env, refreshToken) {
+  const data = await stravaTokenData(env, {
+    refresh_token: refreshToken,
+    grant_type: "refresh_token"
+  });
+  const res = await fetch(STRAVA_ATHLETE_URL, {
+    headers: { Authorization: `Bearer ${data.access_token}` }
   });
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Token refresh failed (${res.status}): ${err}`);
+    throw new Error(`Could not read athlete profile (${res.status})`);
   }
-  const data = await res.json();
-  await env.STRAVA_KV.put("strava_access_token", data.access_token);
-  await env.STRAVA_KV.put("strava_access_token_expires", String(data.expires_at));
-  await env.STRAVA_KV.put("strava_refresh_token", data.refresh_token);
-  return data.access_token;
-}
-function activityFingerprint(act) {
-  // NB: act.name is deliberately excluded. Riders routinely rename an activity
-  // after upload ("Morning Ride" -> "Chill in the wind!"). Including the title
-  // made a rename mint a fresh fingerprint, so the activity was stamped with a
-  // new first-seen date and re-entered the current week - counting it twice.
-  // Every field below is fixed at upload time.
-  const athlete = `${act.athlete?.firstname || ""}${act.athlete?.lastname || ""}`;
-  const sport = act.sport_type ?? act.type ?? "";
-  const distance = Math.round(act.distance || 0);
-  const movingTime = act.moving_time || 0;
-  const elevation = Math.round(act.total_elevation_gain || 0);
-  return `v2:${athlete}_${sport}_${distance}_${movingTime}_${elevation}`;
+  const athlete = await res.json();
+  const existing = await getMember(env, athlete.id);
+  const member = {
+    athleteId: athlete.id,
+    firstname: athlete.firstname ?? "",
+    lastname: athlete.lastname ?? "",
+    refreshToken: data.refresh_token ?? refreshToken,
+    accessToken: data.access_token,
+    accessExpires: data.expires_at,
+    enrolledAt: existing?.enrolledAt ?? (new Date()).toISOString(),
+    lastSyncAt: existing?.lastSyncAt ?? null,
+    lastError: null,
+    // Once enrolled the Worker owns the rotating refresh token, so the app can
+    // no longer refresh on its own. It presents this secret to /refresh
+    // instead. Re-enrolling keeps the existing key so the app stays valid.
+    memberKey: existing?.memberKey ?? newMemberKey()
+  };
+  await saveMember(env, member);
+  return member;
 }
 
-// ── Migration off the v1 fingerprint ────────────────────────────────────────
-// v1 keys were `${athlete}_${title}_${distance}_${movingTime}`. Changing the
-// format orphans every existing entry, so without this every activity Strava
-// returns would look new on the first run after deploy, be stamped with the
-// deploy time, and pile into whatever week that happened to be.
-//
-// A v1 title could itself contain underscores, so those keys are read from the
-// ends: first field is the athlete, last two are distance and moving time.
-// Those three re-identify an activity well enough to inherit its date.
-function legacyLookupKey(act) {
-  const athlete = `${act.athlete?.firstname || ""}${act.athlete?.lastname || ""}`;
-  return `${athlete}_${act.distance || 0}_${act.moving_time || 0}`;
+/** Opt a rider out and delete the week data holding their rides. */
+async function removeMember(env, athleteId) {
+  await env.STRAVA_KV.delete(memberKey(athleteId));
+  for (const name of await listKeys(env, WEEK_PREFIX)) {
+    if (name.endsWith(`:${athleteId}`)) await env.STRAVA_KV.delete(name);
+  }
 }
 
-function buildLegacyIndex(registry) {
-  const index = new Map();
-  for (const [key, seenAt] of Object.entries(registry)) {
-    if (key.startsWith("v2:")) continue;
-    const parts = key.split("_");
-    if (parts.length < 4) continue;
-    const lookup = `${parts[0]}_${parts[parts.length - 2]}_${parts[parts.length - 1]}`;
-    const existing = index.get(lookup);
-    // A rename left several v1 entries for one ride; the earliest is the true
-    // first sighting, so that is the one worth carrying forward.
-    if (!existing || seenAt < existing) index.set(lookup, seenAt);
+/** Read one member's rides for a week and store them under that week. */
+async function syncMemberWeek(env, member, weekStart, weekEnd) {
+  const token = await memberAccessToken(env, member);
+  const after = Math.floor(weekStart.getTime() / 1e3) - 1;
+  const before = Math.floor(weekEnd.getTime() / 1e3) + 1;
+  const url = `${STRAVA_ATHLETE_ACTIVITIES_URL}?after=${after}&before=${before}&per_page=100`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    throw new Error(`Activities fetch failed (${res.status})`);
   }
-  return index;
-}
-async function fetchClubActivities(clubID, accessToken, weekStart, env) {
-  const activities = [];
-  let page = 1;
-  const perPage = 200;
-  const allRaw = [];
-  while (true) {
-    const url = `${STRAVA_CLUB_URL}/${clubID}/activities?per_page=${perPage}&page=${page}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` }
+  const raw = await res.json();
+  const activities = (Array.isArray(raw) ? raw : [])
+    .filter((a) => CYCLING_SPORT_TYPES.has(a.sport_type ?? a.type))
+    .map((a) => {
+      const movingTime = a.moving_time ?? 0;
+      const speedKmh = movingTime > 0 ? (a.distance / movingTime) * 3.6 : 0;
+      return {
+        name: a.name,
+        distance: Math.round((a.distance / 1e3) * 10) / 10,
+        movingTime,
+        elevationGain: Math.round(a.total_elevation_gain ?? 0),
+        averageSpeed: Math.round(speedKmh * 10) / 10,
+        type: a.type,
+        sportType: a.sport_type ?? a.type,
+        startDate: a.start_date
+      };
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Strava club activities fetch failed (${res.status}): ${err}`);
-    }
-    const batch = await res.json();
-    if (!Array.isArray(batch) || batch.length === 0) break;
-    allRaw.push(...batch);
-    if (batch.length < perPage) break;
-    if (page >= MAX_ACTIVITY_PAGES) {
-      console.warn(
-        `Reached MAX_ACTIVITY_PAGES (${MAX_ACTIVITY_PAGES}); club activity list truncated.`
-      );
-      break;
-    }
-    page++;
-  }
-  const registryKey = "activity_registry";
-  let registry = {};
-  try {
-    const raw = await env.STRAVA_KV.get(registryKey);
-    if (raw) registry = JSON.parse(raw);
-  } catch (e) {
-    console.error("Failed to load activity registry:", e.message);
-  }
-  const now = (new Date()).toISOString();
-  const legacyIndex = buildLegacyIndex(registry);
-  let registryChanged = false;
-  let migrated = 0;
-  for (const act of allRaw) {
-    const fp = activityFingerprint(act);
-    if (!registry[fp]) {
-      const inherited = legacyIndex.get(legacyLookupKey(act));
-      if (inherited) migrated++;
-      registry[fp] = inherited || now;
-      registryChanged = true;
-    }
-    const firstSeen = registry[fp];
-    act._effectiveDate = firstSeen;
-    const seenDate = new Date(firstSeen);
-    if (seenDate >= weekStart) {
-      activities.push(act);
-    }
-  }
-  if (registryChanged) {
+  await env.STRAVA_KV.put(
+    weekMemberKey(weekStart, member.athleteId),
+    JSON.stringify({
+      athleteId: member.athleteId,
+      name: displayName(member),
+      activities,
+      syncedAt: (new Date()).toISOString()
+    }),
+    { expirationTtl: WEEK_DATA_TTL_DAYS * 86400 }
+  );
+  return activities.length;
+}
+
+/** Aggregate whatever has been synced for a week into the leaderboard shape. */
+async function buildWeekPayload(env, weekOffset) {
+  const { start: weekStart, end: weekEnd } = getWeekRange(weekOffset);
+  const prefix = `${WEEK_PREFIX}${isoWeekKey(weekStart)}:`;
+  const rows = [];
+  for (const name of await listKeys(env, prefix)) {
+    const raw = await env.STRAVA_KV.get(name);
+    if (!raw) continue;
+    let record;
     try {
-      const cutoff = new Date(Date.now() - REGISTRY_RETENTION_DAYS * 86400 * 1e3).toISOString();
-      const pruned = {};
-      for (const [k, v] of Object.entries(registry)) {
-        if (v >= cutoff) pruned[k] = v;
-      }
-      await env.STRAVA_KV.put(registryKey, JSON.stringify(pruned), {
-        expirationTtl: REGISTRY_RETENTION_DAYS * 86400
-      });
-      console.log(
-        `Activity registry updated: ${Object.keys(pruned).length} entries` +
-        (migrated > 0 ? ` (${migrated} dates inherited from v1 fingerprints)` : "")
-      );
-    } catch (e) {
-      console.error("Failed to save activity registry:", e.message);
+      record = JSON.parse(raw);
+    } catch {
+      continue;
     }
+    const acts = record.activities ?? [];
+    if (acts.length === 0) continue;
+    const totalDistance = acts.reduce((s, a) => s + a.distance, 0);
+    const totalMovingTime = acts.reduce((s, a) => s + a.movingTime, 0);
+    const weightedSpeed = acts.reduce((s, a) => s + a.averageSpeed * a.distance, 0);
+    rows.push({
+      name: record.name,
+      rideCount: acts.length,
+      totalDistance: Math.round(totalDistance * 10) / 10,
+      totalElevation: acts.reduce((s, a) => s + a.elevationGain, 0),
+      totalMovingTime,
+      avgSpeed: totalDistance > 0 ? Math.round((weightedSpeed / totalDistance) * 10) / 10 : 0,
+      movingTimeFormatted: formatMovingTime(totalMovingTime),
+      activities: acts
+    });
   }
-  return activities;
+  rows.sort((a, b) => b.totalDistance - a.totalDistance);
+  const enrolled = await listKeys(env, MEMBER_PREFIX);
+  const payload = {
+    lastFetchedAt: (new Date()).toISOString(),
+    weekLabel: weekLabel(weekStart),
+    weekStart: weekStart.toISOString().slice(0, 10),
+    weekEnd: weekEnd.toISOString().slice(0, 10),
+    memberCount: rows.length,
+    totalActivities: rows.reduce((s, r) => s + r.rideCount, 0),
+    // Real ride timestamps now, from each rider's own feed - not observations.
+    dateSource: "strava",
+    // The leaderboard only covers riders who opted in, so the UI should say so
+    // rather than implying it speaks for all 100 club members.
+    enrolledCount: enrolled.length,
+    members: rows
+  };
+  await env.STRAVA_KV.put(
+    `club_data_week_${isoWeekKey(weekStart)}`,
+    JSON.stringify(payload),
+    { expirationTtl: CACHE_TTL_SECONDS }
+  );
+  return payload;
+}
+
+/**
+ * Sync a slice of members, then rebuild the week. Round-robins via a stored
+ * cursor so every member is reached in turn without exceeding Strava's limits.
+ * A member whose token has been revoked is recorded and skipped, never
+ * blocking the rest of the club.
+ */
+async function syncBatch(env, weekOffset = 0) {
+  const { start: weekStart, end: weekEnd } = getWeekRange(weekOffset);
+  const members = await listMembers(env);
+  if (members.length === 0) {
+    return { enrolled: 0, synced: 0, failed: 0 };
+  }
+  members.sort((a, b) => a.athleteId - b.athleteId);
+  const cursor = await env.STRAVA_KV.get("sync_cursor");
+  const found = cursor ? members.findIndex((m) => String(m.athleteId) === cursor) : -1;
+  const startIndex = found >= 0 ? found + 1 : 0;
+
+  let synced = 0;
+  let failed = 0;
+  let last = null;
+  const count = Math.min(MEMBERS_PER_SYNC, members.length);
+  for (let i = 0; i < count; i++) {
+    const member = members[(startIndex + i) % members.length];
+    last = member.athleteId;
+    try {
+      await syncMemberWeek(env, member, weekStart, weekEnd);
+      member.lastSyncAt = (new Date()).toISOString();
+      member.lastError = null;
+      synced++;
+    } catch (err) {
+      member.lastError = err.message;
+      failed++;
+      console.error(`Sync failed for athlete ${member.athleteId}: ${err.message}`);
+    }
+    await saveMember(env, member);
+  }
+  if (last !== null) await env.STRAVA_KV.put("sync_cursor", String(last));
+  await buildWeekPayload(env, weekOffset);
+  return { enrolled: members.length, synced, failed };
 }
 const CYCLING_SPORT_TYPES = new Set([
   "Ride",
@@ -246,80 +389,6 @@ const CYCLING_SPORT_TYPES = new Set([
   "Handcycle",
   "Velomobile"
 ]);
-function aggregateActivities(rawActivities, weekStart, weekEnd, fetchedAt) {
-  // Strava's club-activities endpoint omits start_date entirely, so dates here
-  // are first-seen observations recorded by the hourly cron, not ride times.
-  let datedFromStrava = 0;
-  let datedFromRegistry = 0;
-  const memberMap = new Map();
-  for (const act of rawActivities) {
-    const actDate = new Date(act._effectiveDate || act.start_date);
-    if (isNaN(actDate.getTime())) continue;
-    if (act.start_date) datedFromStrava++;
-    else datedFromRegistry++;
-    if (actDate < weekStart || actDate > weekEnd) continue;
-    if (!CYCLING_SPORT_TYPES.has(act.sport_type ?? act.type)) continue;
-    const name = `${act.athlete.firstname} ${act.athlete.lastname.charAt(0)}.`;
-    if (!memberMap.has(name)) {
-      memberMap.set(name, {
-        name,
-        totalDistance: 0,
-        totalElevation: 0,
-        totalMovingTime: 0,
-        rideCount: 0,
-        activities: [],
-        // For weighted avg speed calc
-        _weightedSpeedSum: 0
-      });
-    }
-    const member = memberMap.get(name);
-    const distKm = act.distance / 1e3;
-    const movingSec = act.moving_time ?? 0;
-    const speedKmh = movingSec > 0 ? act.distance / movingSec * 3.6 : 0;
-    member.totalDistance += distKm;
-    member.totalElevation += Math.round(act.total_elevation_gain ?? 0);
-    member.totalMovingTime += act.moving_time ?? 0;
-    member.rideCount += 1;
-    member._weightedSpeedSum += speedKmh * distKm;
-    member.activities.push({
-      name: act.name,
-      distance: Math.round(distKm * 10) / 10,
-      movingTime: act.moving_time ?? 0,
-      elevationGain: Math.round(act.total_elevation_gain ?? 0),
-      averageSpeed: Math.round(speedKmh * 10) / 10,
-      type: act.type,
-      sportType: act.sport_type ?? act.type,
-      // prefer sport_type (Ride, MountainBikeRide, GravelRide, EBikeRide, VirtualRide)
-      startDate: act._effectiveDate || act.start_date || null
-      // first-seen timestamp from KV
-    });
-  }
-  const members = Array.from(memberMap.values()).map((m) => {
-    const avgSpeed = m.totalDistance > 0 ? Math.round(m._weightedSpeedSum / m.totalDistance * 10) / 10 : 0;
-    const { _weightedSpeedSum, ...rest } = m;
-    return {
-      ...rest,
-      totalDistance: Math.round(m.totalDistance * 10) / 10,
-      avgSpeed,
-      movingTimeFormatted: formatMovingTime(m.totalMovingTime)
-    };
-  }).sort((a, b) => b.totalDistance - a.totalDistance);
-  const totalActivities = members.reduce((s, m) => s + m.rideCount, 0);
-  return {
-    lastFetchedAt: fetchedAt,
-    weekLabel: weekLabel(weekStart),
-    weekStart: weekStart.toISOString().slice(0, 10),
-    weekEnd: weekEnd.toISOString().slice(0, 10),
-    memberCount: members.length,
-    totalActivities,
-    // "observed" means every activity was dated by first sighting rather than
-    // by its real start time, so a ride uploaded late lands in the week it was
-    // first seen. Clients should caption week totals accordingly.
-    dateSource: datedFromStrava > 0 ? (datedFromRegistry > 0 ? "mixed" : "strava") : "observed",
-    registryRetentionDays: REGISTRY_RETENTION_DAYS,
-    members
-  };
-}
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -379,27 +448,10 @@ async function readJsonField(request, field) {
   return { value };
 }
 
-async function fetchAndCacheWeek(env, weekOffset) {
-  const { start: weekStart, end: weekEnd } = getWeekRange(weekOffset);
-  const cacheKey = `club_data_week_${isoWeekKey(weekStart)}`;
-  const accessToken = await getAccessToken(env);
-  const clubID = env.STRAVA_CLUB_ID ?? "212760";
-  const rawActivities = await fetchClubActivities(clubID, accessToken, weekStart, env);
-  const payload = aggregateActivities(
-    rawActivities,
-    weekStart,
-    weekEnd,
-    (new Date()).toISOString()
-  );
-  await env.STRAVA_KV.put(cacheKey, JSON.stringify(payload), {
-    expirationTtl: CACHE_TTL_SECONDS
-  });
-  return payload;
-}
 export default {
-  // ── Cron trigger: refresh current week every hour ──────────────────────────
+  // ── Cron: sync a slice of opted-in members every hour ─────────────────────
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(fetchAndCacheWeek(env, 0));
+    ctx.waitUntil(syncBatch(env, 0));
   },
   // ── HTTP requests ──────────────────────────────────────────────────────────
   async fetch(request, env) {
@@ -562,12 +614,80 @@ https://amitrkamat.atlassian.net/browse/${jiraData.key}`
     }
 
     if (url.pathname === "/refresh" && request.method === "POST") {
-      const { value: refreshToken, error } = await readJsonField(request, "refresh_token");
-      if (error) return error;
+      const payload = await request.json().catch(() => null);
+      if (!payload) return errorResponse("Invalid JSON body");
+
+      // Enrolled rider: the Worker holds the only live refresh token, so it
+      // mints the access token and keeps the rotation. Guarded by the rider's
+      // own key — athlete ids are effectively public, so accepting one alone
+      // would hand anybody an access token for any enrolled rider.
+      if (payload.athlete_id && payload.member_key) {
+        const member = await getMember(env, payload.athlete_id);
+        if (!member || member.memberKey !== payload.member_key) {
+          return errorResponse("Not enrolled, or member_key does not match", 401);
+        }
+        try {
+          const accessToken = await memberAccessToken(env, member);
+          return jsonResponse({
+            access_token: accessToken,
+            expires_at: member.accessExpires,
+            token_type: "Bearer"
+          });
+        } catch (err) {
+          return errorResponse(`Token refresh failed: ${err.message}`, 502);
+        }
+      }
+
+      // Not enrolled: unchanged stateless behaviour, app keeps its own token.
+      if (!payload.refresh_token || typeof payload.refresh_token !== "string") {
+        return errorResponse("Missing or invalid 'refresh_token' field");
+      }
       return stravaTokenGrant(env, {
-        refresh_token: refreshToken,
+        refresh_token: payload.refresh_token,
         grant_type: "refresh_token"
       });
+    }
+
+    // Opt in to the leaderboard. The rider has already authorised the app, so
+    // this hands the Worker the refresh token it needs to read their rides on
+    // their behalf. Consent is explicit: the app only calls this when the
+    // rider has chosen to share, never as part of plain sign-in.
+    if (url.pathname === "/enrol" && request.method === "POST") {
+      const { value: refreshToken, error } = await readJsonField(request, "refresh_token");
+      if (error) return error;
+      try {
+        const member = await enrolMember(env, refreshToken);
+        return jsonResponse({
+          enrolled: true,
+          athlete_id: member.athleteId,
+          name: displayName(member),
+          // The app must keep this; without it an enrolled rider cannot get a
+          // new access token and will be signed out when the current one ages.
+          member_key: member.memberKey
+        });
+      } catch (err) {
+        return errorResponse(`Enrolment failed: ${err.message}`, 502);
+      }
+    }
+
+    // Opt out. Requires a working access token for that athlete, so a rider can
+    // only remove themselves. Deletes their stored rides as well as their token.
+    if (url.pathname === "/leave" && request.method === "POST") {
+      const { value: accessToken, error } = await readJsonField(request, "access_token");
+      if (error) return error;
+      try {
+        const res = await fetch(STRAVA_ATHLETE_URL, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!res.ok) return errorResponse("Access token is not valid", 401);
+        const athlete = await res.json();
+        await removeMember(env, athlete.id);
+        // The member record held the key, so it dies with it; the app must fall
+        // back to its own refresh token from here.
+        return jsonResponse({ enrolled: false, athlete_id: athlete.id });
+      } catch (err) {
+        return errorResponse(`Opt-out failed: ${err.message}`, 502);
+      }
     }
 
     if (request.method !== "GET") {
@@ -643,32 +763,28 @@ https://amitrkamat.atlassian.net/browse/${jiraData.key}`
     }
     if (url.pathname === "/diagnostics") {
       try {
-        const accessToken = await getAccessToken(env);
-        const clubID = env.STRAVA_CLUB_ID ?? "212760";
-        const meRes = await fetch("https://www.strava.com/api/v3/athlete", {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const meBody = meRes.ok ? await meRes.json() : await meRes.text();
-        const clubRes = await fetch(`https://www.strava.com/api/v3/clubs/${clubID}`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const clubBody = clubRes.ok ? await clubRes.json() : await clubRes.text();
-        const actUrl = `https://www.strava.com/api/v3/clubs/${clubID}/activities?per_page=5&page=1`;
-        const actRes = await fetch(actUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const actBody = actRes.ok ? await actRes.json() : await actRes.text();
-        const regRaw = await env.STRAVA_KV.get("activity_registry");
-        const regSize = regRaw ? Object.keys(JSON.parse(regRaw)).length : 0;
+        const members = await listMembers(env);
+        const { start: weekStart } = getWeekRange(0);
+        const weekKeys = await listKeys(env, `${WEEK_PREFIX}${isoWeekKey(weekStart)}:`);
         return jsonResponse({
-          tokenValid: meRes.ok,
-          tokenStatus: meRes.status,
-          athlete: meRes.ok ? { id: meBody.id, firstname: meBody.firstname, lastname: meBody.lastname } : meBody,
-          clubStatus: clubRes.status,
-          club: clubRes.ok ? { id: clubBody.id, name: clubBody.name, member_count: clubBody.member_count } : clubBody,
-          activitiesStatus: actRes.status,
-          activitiesSample: actBody,
-          registryEntries: regSize
+          // The club feed this Worker used to read was removed by Strava on
+          // 1 September 2026; the leaderboard is now built from riders who
+          // opted in individually.
+          mode: "per-member",
+          enrolledCount: members.length,
+          syncedThisWeek: weekKeys.length,
+          syncCursor: await env.STRAVA_KV.get("sync_cursor"),
+          membersPerSync: MEMBERS_PER_SYNC,
+          members: members
+            .sort((a, b) => (b.lastSyncAt ?? "").localeCompare(a.lastSyncAt ?? ""))
+            .map((m) => ({
+              athleteId: m.athleteId,
+              name: displayName(m),
+              enrolledAt: m.enrolledAt,
+              lastSyncAt: m.lastSyncAt,
+              // Usually a revoked authorisation; that rider must opt in again.
+              lastError: m.lastError
+            }))
         });
       } catch (err) {
         return errorResponse(`Diagnostics failed: ${err.message}`, 500);
@@ -680,14 +796,14 @@ https://amitrkamat.atlassian.net/browse/${jiraData.key}`
       // The first-seen registry is the only thing dating these activities, so
       // it bounds how far back a week can be answered. Past that horizon the
       // response was silently sparse and looked legitimate; now it is refused.
-      const maxWeeksBack = Math.floor(REGISTRY_RETENTION_DAYS / 7);
+      const maxWeeksBack = Math.floor(WEEK_DATA_TTL_DAYS / 7);
       if (isNaN(weekOffset) || weekOffset > 0) {
         return errorResponse("Invalid weekOffset. Must be 0 (current) or negative (past weeks).");
       }
       if (weekOffset < -maxWeeksBack) {
         return errorResponse(
-          `weekOffset ${weekOffset} predates the activity registry, which retains ` +
-          `${REGISTRY_RETENTION_DAYS} days (max ${-maxWeeksBack}). Older weeks cannot be dated reliably.`,
+          `weekOffset ${weekOffset} is older than the ${WEEK_DATA_TTL_DAYS} days of ` +
+          `week data kept (max ${-maxWeeksBack}).`,
           422
         );
       }
@@ -707,10 +823,10 @@ https://amitrkamat.atlassian.net/browse/${jiraData.key}`
         }
       }
       try {
-        const payload = await fetchAndCacheWeek(env, weekOffset);
-        return jsonResponse(payload);
+        if (forceRefresh) await syncBatch(env, weekOffset);
+        return jsonResponse(await buildWeekPayload(env, weekOffset));
       } catch (err) {
-        return errorResponse(`Failed to fetch club data: ${err.message}`, 502);
+        return errorResponse(`Failed to build club data: ${err.message}`, 502);
       }
     }
     if (url.pathname === "/features") {
