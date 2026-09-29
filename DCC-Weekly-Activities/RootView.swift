@@ -38,11 +38,8 @@ struct RootView: View {
                     // ── Device lock verification (unchanged) ───────────────────
                     BiometricGateView(launchDismissed: launchDismissed)
                 } else {
-                    // ── Fully authenticated — load data from Worker ────────────
+                    // ── Fully authenticated — WeeklyDashboardView loads data from Worker ──
                     WeeklyDashboardView()
-                        .task {
-                            await cloudData.fetchData()
-                        }
                 }
             }
             .task {
@@ -304,9 +301,10 @@ struct BiometricGateView: View {
             return
         }
 
-        // If the token is stale after biometric success, try a silent refresh before
-        // unlocking the dashboard — the user should never see an auth error screen.
-        if !stravaAPI.isTokenFresh {
+        // Club-code flow does not use Strava OAuth, so only attempt a silent
+        // refresh when an OAuth access token is actually present. Otherwise
+        // isTokenFresh is always false and we'd log the user out in a loop.
+        if stravaAPI.accessToken != nil && !stravaAPI.isTokenFresh {
             BiometricLog.step("Token stale after biometric — attempting silent refresh")
             isRefreshing = true
             let refreshed = await UserAuthService.shared.refreshAccessToken()
@@ -326,6 +324,8 @@ struct BiometricGateView: View {
 
 struct WeeklyDashboardView: View {
     @State private var stravaAPI = StravaAPI.shared
+    @State private var cloudData = CloudDataFetcher.shared
+    @State private var clubAuth  = ClubCodeAuthService.shared
     @State private var stats: [MemberStats] = []
     @State private var activities: [Activity] = []
     @State private var athleteProfile: AthleteProfile?
@@ -460,65 +460,33 @@ struct WeeklyDashboardView: View {
         #if DEBUG
         print("[PostLogin] loadInitialData called, athleteProfile exists: \(athleteProfile != nil)")
         #endif
-        
-        // Only fetch athlete profile on first load
-        guard athleteProfile == nil else {
-            // Profile already loaded, just fetch activities
-            #if DEBUG
-            print("[PostLogin] Profile already loaded, fetching activities only...")
-            #endif
-            await loadClubActivities()
-            #if DEBUG
-            print("[PostLogin] Activities fetch complete")
-            #endif
-            return
-        }
-        
-        #if DEBUG
-        print("[PostLogin] Starting initial data load... accessToken exists: \(stravaAPI.accessToken != nil)")
-        #endif
-        
-        isLoading    = true
-        errorMessage = nil
 
-        do {
-            // First, fetch the authenticated athlete's profile
-            #if DEBUG
-            print("[PostLogin] Fetching authenticated athlete profile...")
-            #endif
-            athleteProfile = try await stravaAPI.fetchAuthenticatedAthlete()
-            #if DEBUG
-            print("[PostLogin] ✅ Athlete profile loaded: \(athleteProfile?.firstname ?? "unknown") \(athleteProfile?.lastname ?? "")")
-            #endif
-            
-            // Then fetch club activities
-            #if DEBUG
-            print("[PostLogin] Fetching club activities...")
-            #endif
-            await loadClubActivities()
-            #if DEBUG
-            print("[PostLogin] ✅ Club activities loaded: \(stats.count) members, \(activities.count) activities")
-            #endif
-        } catch StravaError.notAuthenticated, StravaError.tokenExpired {
-            #if DEBUG
-            print("[PostLogin] ❌ Auth/token error — locking biometric gate for silent re-auth")
-            #endif
-            // Reset biometric lock so RootView routes back to BiometricGateView,
-            // which auto-fires Face ID and then attempts a token refresh — no error screen shown.
-            BiometricAuth.shared.lock()
-        } catch {
-            #if DEBUG
-            print("[PostLogin] ❌ Error loading initial data: \(error)")
-            #endif
-            errorMessage = error.localizedDescription
+        // Build the viewer's athlete profile from the club-code entry.
+        // The Cloudflare worker is the source of truth for club activities, so
+        // we no longer need a Strava-authenticated athlete here.
+        if athleteProfile == nil {
+            athleteProfile = makeLocalProfile()
         }
 
-        isLoading = false
-        #if DEBUG
-        print("[PostLogin] loadInitialData complete. Profile: \(athleteProfile != nil), Stats: \(stats.count), Activities: \(activities.count)")
-        #endif
+        await loadClubActivities()
     }
-    
+
+    private func makeLocalProfile() -> AthleteProfile {
+        let name = clubAuth.memberName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = name.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true).map(String.init)
+        let first = parts.first ?? (name.isEmpty ? "DCC" : name)
+        let last  = parts.count > 1 ? parts[1] : "Member"
+        return AthleteProfile(
+            id: 0,
+            firstname: first,
+            lastname: last,
+            profile: nil,
+            city: nil,
+            state: nil,
+            country: nil
+        )
+    }
+
     private func loadClubActivities() async {
         #if DEBUG
         print("[PostLogin] loadClubActivities started (weekOffset=\(selectedWeekOffset))")
@@ -526,46 +494,40 @@ struct WeeklyDashboardView: View {
         isLoading = true
         errorMessage = nil
 
-        do {
-            #if DEBUG
-            print("[PostLogin] Fetching club activities from API (2-week window)...")
-            #endif
-            let result = try await stravaAPI.fetchActivitiesForWeek(offset: selectedWeekOffset)
-            #if DEBUG
-            print("[PostLogin] API returned \(result.current.count) current + \(result.previous.count) previous activities")
-            #endif
+        await cloudData.fetchData(weekOffset: selectedWeekOffset)
 
-            activities = result.current.sorted { $0.date > $1.date }
-            stats = buildMemberStats(from: result.current, previousWeekActivities: result.previous)
-
-            // Save current week to cache (only when viewing current week)
-            if selectedWeekOffset == 0 {
-                WeeklyCache.save(stats)
-            }
-
-            NotificationCenter.default.post(name: NSNotification.Name("DCCDataLoadComplete"), object: nil)
-
-            dateRange = (start: result.interval.start, end: result.interval.end)
+        if let msg = cloudData.errorMessage {
             #if DEBUG
-            print("[PostLogin] Date range: \(result.interval.start) – \(result.interval.end)")
-            print("[PostLogin] ✅ Processed into \(stats.count) member stats")
+            print("[PostLogin] ❌ Error in loadClubActivities: \(msg)")
             #endif
-        } catch StravaError.notAuthenticated, StravaError.tokenExpired {
-            #if DEBUG
-            print("[PostLogin] ❌ Auth/token error in loadClubActivities — locking biometric gate")
-            #endif
-            BiometricAuth.shared.lock()
-        } catch {
-            #if DEBUG
-            print("[PostLogin] ❌ Error in loadClubActivities: \(error.localizedDescription)")
-            #endif
-            errorMessage = error.localizedDescription
+            errorMessage = msg
+            isLoading = false
+            return
         }
 
-        isLoading = false
+        let currentActs  = cloudData.toActivities()
+        let previousActs = cloudData.toPreviousWeekActivities()
         #if DEBUG
-        print("[PostLogin] loadClubActivities completed. Activities: \(activities.count), Stats: \(stats.count)")
+        print("[PostLogin] Worker returned \(currentActs.count) current + \(previousActs.count) previous activities")
         #endif
+
+        activities = currentActs.sorted { $0.date > $1.date }
+        stats = buildMemberStats(from: currentActs, previousWeekActivities: previousActs)
+
+        if selectedWeekOffset == 0 {
+            WeeklyCache.save(stats)
+        }
+
+        NotificationCenter.default.post(name: NSNotification.Name("DCCDataLoadComplete"), object: nil)
+
+        let interval = DateRangeProvider.weekRange(offset: selectedWeekOffset)
+        dateRange = (start: interval.start, end: interval.end)
+        #if DEBUG
+        print("[PostLogin] Date range: \(interval.start) – \(interval.end)")
+        print("[PostLogin] ✅ Processed into \(stats.count) member stats")
+        #endif
+
+        isLoading = false
     }
     
     private func loadData() async {
