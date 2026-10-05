@@ -162,3 +162,45 @@ struct LeaderboardOptInView: View {
         }
     }
 }
+
+// MARK: - Status bar
+
+/// Slim, always-present strip above the dashboard showing whether this rider is
+/// sharing, and opening the opt-in screen when tapped.
+///
+/// Since Strava's club feed was withdrawn, a rider who has not opted in sees an
+/// empty leaderboard with nothing explaining why. This is that explanation, and
+/// the way in and back out again.
+struct LeaderboardStatusBar: View {
+    @State private var membership = LeaderboardMembership.shared
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: membership.isEnrolled ? "checkmark.circle.fill" : "person.badge.plus")
+                    .foregroundStyle(membership.isEnrolled ? Color.success : Color.accent)
+
+                Text(membership.isEnrolled
+                     ? "You're sharing your rides with DCC"
+                     : "Share your rides to appear on the leaderboard")
+                    .font(.bodySmall)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: Spacing.xs)
+
+                Image(systemName: "chevron.right")
+                    .font(.labelDefault)
+                    .foregroundStyle(Color.textTertiary)
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.xs)
+            .background(Color.surface)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(membership.isEnrolled
+                            ? "You are sharing your rides. Tap to manage."
+                            : "Share your rides with the club leaderboard.")
+    }
+}

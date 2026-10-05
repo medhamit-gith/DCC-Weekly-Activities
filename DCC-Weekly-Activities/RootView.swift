@@ -335,6 +335,9 @@ struct WeeklyDashboardView: View {
     @State private var dateRange: (start: Date, end: Date)?
     /// 0 = this week, -1 = last week, -2 = two weeks ago, etc. (max 4 weeks back)
     @State private var selectedWeekOffset: Int = 0
+    /// The leaderboard only contains riders who have opted in, so there has to
+    /// be a way to opt in from the dashboard itself.
+    @State private var showLeaderboardOptIn = false
 
     var body: some View {
         Group {
@@ -443,14 +446,22 @@ struct WeeklyDashboardView: View {
             }
         } else {
             // Main professional dashboard — routes to iPad or iPhone layout
-            AdaptiveDashboardRouter(
-                stats: stats,
-                dateRange: dateRange.map { DateInterval(start: $0.start, end: $0.end) },
-                athleteProfile: profile,
-                activities: activities,
-                selectedWeekOffset: $selectedWeekOffset,
-                onWeekChanged: { Task { await loadClubActivities() } }
-            )
+            VStack(spacing: 0) {
+                LeaderboardStatusBar { showLeaderboardOptIn = true }
+
+                AdaptiveDashboardRouter(
+                    stats: stats,
+                    dateRange: dateRange.map { DateInterval(start: $0.start, end: $0.end) },
+                    athleteProfile: profile,
+                    activities: activities,
+                    selectedWeekOffset: $selectedWeekOffset,
+                    onWeekChanged: { Task { await loadClubActivities() } }
+                )
+            }
+            .sheet(isPresented: $showLeaderboardOptIn) {
+                LeaderboardOptInView()
+                    .presentationDetents([.medium, .large])
+            }
         }
     }
 
