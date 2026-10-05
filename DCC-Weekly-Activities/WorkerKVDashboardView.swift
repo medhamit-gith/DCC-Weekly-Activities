@@ -80,7 +80,7 @@ final class WorkerKVDashboardViewModel {
         guard let url = URL(string: urlStr) else { return nil }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await AppNetwork.session.data(from: url)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 return nil
             }

@@ -37,36 +37,8 @@ final class CloudDataFetcher {
         errorMessage = nil
         defer { isLoading = false }
 
-        var components = URLComponents(string: baseURL)
-        if weekOffset != 0 {
-            components?.queryItems = [URLQueryItem(name: "weekOffset", value: String(weekOffset))]
-        }
-
-        guard let url = components?.url else {
-            errorMessage = "Invalid data URL"
-            return
-        }
-
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                errorMessage = "Could not load club data. Pull to refresh."
-                return
-            }
-
-            // The worker returns 422 when the requested week predates the
-            // activity registry, with an explanation worth showing.
-            guard httpResponse.statusCode == 200 else {
-                if let decoded = try? JSONDecoder().decode(CloudDataError.self, from: data) {
-                    errorMessage = decoded.error
-                } else {
-                    errorMessage = "Server returned an error. Pull to refresh."
-                }
-                return
-            }
-
-            let decoded = try JSONDecoder().decode(CloudDataResponse.self, from: data)
+            let decoded = try await fetchResponse(weekOffset: weekOffset)
             members = decoded.members
             weekLabel = decoded.weekLabel
             dateSource = decoded.dateSource
@@ -77,9 +49,58 @@ final class CloudDataFetcher {
             }
 
             errorMessage = nil
+        } catch let error as CloudDataFetchError {
+            errorMessage = error.message
         } catch {
-            errorMessage = "Could not load club data. Pull to refresh."
+            errorMessage = AppNetwork.isTimeout(error)
+                ? "The club server is not responding. Pull to refresh."
+                : "Could not load club data. Pull to refresh."
         }
+    }
+
+    /// One week's activities, without touching the published state.
+    ///
+    /// The dashboard needs the selected week and the one before it to show
+    /// week-on-week movement, and the shared state can only hold one at a time.
+    /// Returns an empty array rather than throwing: a missing comparison week
+    /// should not fail the whole screen.
+    func activities(weekOffset: Int) async -> [Activity] {
+        guard let decoded = try? await fetchResponse(weekOffset: weekOffset) else { return [] }
+        let fetchedAt = CloudDataFetcher.parseDate(decoded.lastFetchedAt)
+        return CloudDataFetcher.activities(from: decoded.members, fallbackDate: fetchedAt)
+    }
+
+    // MARK: - Transport
+
+    private struct CloudDataFetchError: Error {
+        let message: String
+    }
+
+    private func fetchResponse(weekOffset: Int) async throws -> CloudDataResponse {
+        var components = URLComponents(string: baseURL)
+        if weekOffset != 0 {
+            components?.queryItems = [URLQueryItem(name: "weekOffset", value: String(weekOffset))]
+        }
+        guard let url = components?.url else {
+            throw CloudDataFetchError(message: "Invalid data URL")
+        }
+
+        let (data, response) = try await AppNetwork.session.data(from: url)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CloudDataFetchError(message: "Could not load club data. Pull to refresh.")
+        }
+
+        // The worker returns 422 for a week older than the data it keeps, with
+        // an explanation worth showing.
+        guard httpResponse.statusCode == 200 else {
+            if let decoded = try? JSONDecoder().decode(CloudDataError.self, from: data) {
+                throw CloudDataFetchError(message: decoded.error)
+            }
+            throw CloudDataFetchError(message: "Server returned an error. Pull to refresh.")
+        }
+
+        return try JSONDecoder().decode(CloudDataResponse.self, from: data)
     }
 
     /// Shared parser. `.withFractionalSeconds` is required: the worker emits
@@ -100,6 +121,10 @@ final class CloudDataFetcher {
     /// Convert cloud data to the existing Activity model format for compatibility
     /// with existing chart/table/leaderboard views.
     func toActivities() -> [Activity] {
+        CloudDataFetcher.activities(from: members, fallbackDate: lastFetchedAt)
+    }
+
+    static func activities(from members: [CloudMemberData], fallbackDate: Date?) -> [Activity] {
         var activities: [Activity] = []
         for member in members {
             for act in (member.activities ?? []) {
@@ -109,7 +134,7 @@ final class CloudDataFetcher {
                     memberName: member.name,
                     activityName: act.name,
                     distance: act.distance,
-                    date: CloudDataFetcher.parseDate(act.startDate) ?? lastFetchedAt ?? Date(),
+                    date: parseDate(act.startDate) ?? fallbackDate ?? Date(),
                     averageSpeed: act.averageSpeed,
                     elevationGain: Double(act.elevationGain),
                     movingTime: act.movingTime,

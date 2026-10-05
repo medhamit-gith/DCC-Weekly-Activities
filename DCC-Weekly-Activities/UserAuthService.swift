@@ -366,7 +366,7 @@ final class UserAuthService {
         }
         do {
             OAuthLog.step("POSTing code to Cloudflare worker...")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await AppNetwork.session.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
             OAuthLog.step("Worker responded HTTP \(statusCode)")
             if !(200...299).contains(statusCode) {
@@ -439,7 +439,7 @@ final class UserAuthService {
             return false
         }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await AppNetwork.session.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
             OAuthLog.step("Refresh worker HTTP \(statusCode)")
             if !(200...299).contains(statusCode) {
@@ -515,7 +515,7 @@ final class UserAuthService {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await AppNetwork.session.data(for: req)
         if let http = response as? HTTPURLResponse, http.statusCode == 401 {
             throw StravaError.tokenExpired
         }

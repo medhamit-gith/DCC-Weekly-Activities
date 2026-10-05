@@ -537,40 +537,40 @@ struct WeeklyDashboardView: View {
         isLoading = true
         errorMessage = nil
 
-        do {
-            #if DEBUG
-            print("[PostLogin] Fetching club activities from API (2-week window)...")
-            #endif
-            let result = try await stravaAPI.fetchActivitiesForWeek(offset: selectedWeekOffset)
-            #if DEBUG
-            print("[PostLogin] API returned \(result.current.count) current + \(result.previous.count) previous activities")
-            #endif
+        // Club data comes from the Worker, which assembles it from members who
+        // have opted in to sharing.
+        //
+        // This used to call Strava's club activity feed twice on every launch
+        // and every week change. Strava removed that endpoint on 1 September
+        // 2026, so both calls could only fail — and with no timeout configured
+        // each one could sit for 60 seconds before giving up, leaving the
+        // dashboard on a loading screen with nothing tappable for minutes.
+        let interval = DateRangeProvider.weekRange(offset: selectedWeekOffset)
 
-            activities = result.current.sorted { $0.date > $1.date }
-            stats = buildMemberStats(from: result.current, previousWeekActivities: result.previous)
+        // Both weeks at once: the comparison week should not add a second
+        // round trip to the wait.
+        async let currentWeek = CloudDataFetcher.shared.activities(weekOffset: selectedWeekOffset)
+        async let previousWeek = CloudDataFetcher.shared.activities(weekOffset: selectedWeekOffset - 1)
+        let current = await currentWeek
+        let previous = await previousWeek
 
-            // Save current week to cache (only when viewing current week)
-            if selectedWeekOffset == 0 {
-                WeeklyCache.save(stats)
-            }
+        activities = current.sorted { $0.date > $1.date }
+        stats = buildMemberStats(from: current, previousWeekActivities: previous)
 
-            NotificationCenter.default.post(name: NSNotification.Name("DCCDataLoadComplete"), object: nil)
+        // Save current week to cache (only when viewing current week)
+        if selectedWeekOffset == 0 {
+            WeeklyCache.save(stats)
+        }
 
-            dateRange = (start: result.interval.start, end: result.interval.end)
-            #if DEBUG
-            print("[PostLogin] Date range: \(result.interval.start) – \(result.interval.end)")
-            print("[PostLogin] ✅ Processed into \(stats.count) member stats")
-            #endif
-        } catch StravaError.notAuthenticated, StravaError.tokenExpired {
-            #if DEBUG
-            print("[PostLogin] ❌ Auth/token error in loadClubActivities — locking biometric gate")
-            #endif
-            BiometricAuth.shared.lock()
-        } catch {
-            #if DEBUG
-            print("[PostLogin] ❌ Error in loadClubActivities: \(error.localizedDescription)")
-            #endif
-            errorMessage = error.localizedDescription
+        NotificationCenter.default.post(name: NSNotification.Name("DCCDataLoadComplete"), object: nil)
+
+        dateRange = (start: interval.start, end: interval.end)
+
+        // An empty board is not an error: until club members opt in there is
+        // genuinely nothing to show, and the opt-in banner explains that far
+        // better than an error screen would. Only surface a real failure.
+        if stats.isEmpty, let message = CloudDataFetcher.shared.errorMessage {
+            errorMessage = message
         }
 
         isLoading = false

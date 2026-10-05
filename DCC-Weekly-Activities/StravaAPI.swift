@@ -181,7 +181,7 @@ final class StravaAPI {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await AppNetwork.session.data(for: req)
         if let http = response as? HTTPURLResponse, http.statusCode == 401 { throw StravaError.tokenExpired }
 
         do {
@@ -325,7 +325,7 @@ final class StravaAPI {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await AppNetwork.session.data(for: req)
         if let http = response as? HTTPURLResponse, http.statusCode == 401 { throw StravaError.tokenExpired }
 
         do {
@@ -350,7 +350,7 @@ final class StravaAPI {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await AppNetwork.session.data(for: req)
         if let http = response as? HTTPURLResponse, http.statusCode == 401 { throw StravaError.tokenExpired }
 
         do {
