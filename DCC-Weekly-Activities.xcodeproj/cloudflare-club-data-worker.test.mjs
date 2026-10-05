@@ -252,5 +252,25 @@ r = await postJSON(e, '/enrol', { refresh_token: JSON.parse(await e.STRAVA_KV.ge
 check('re-enrolling keeps the same member_key',
   (await r.json()).member_key === enrolBody.member_key);
 
+// ── 9. A new rider appears immediately, not an hour later ──────────────────
+console.log('\n9. First sync happens at enrolment');
+e = env();
+athletes = { 'AT-RT-new': { id: 77, firstname: 'Pankaj', lastname: 'B' } };
+activitiesFor = { 77: [ride('First ride', 33, 5000, 120, dayInWeek(1))] };
+await postJSON(e, '/enrol', { refresh_token: 'RT-new' });
+// Read WITHOUT force, exactly as the app does right after opting in.
+data = await (await call(e, '/club-data')).json();
+check('rider is on the board straight after opting in', data.memberCount === 1,
+  JSON.stringify(data.members?.map(m => m.name)));
+check('with their ride already counted', data.members?.[0]?.totalDistance === 33,
+  `${data.members?.[0]?.totalDistance}`);
+
+// A rider whose feed cannot be read must still enrol; the cron retries later.
+e = env();
+athletes = { 'AT-RT-odd': { id: 88, firstname: 'Ram', lastname: 'A' } };
+activitiesFor = {};
+r = await postJSON(e, '/enrol', { refresh_token: 'RT-odd' });
+check('enrolment survives a failed first sync', r.status === 200, `got ${r.status}`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

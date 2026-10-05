@@ -657,6 +657,18 @@ https://amitrkamat.atlassian.net/browse/${jiraData.key}`
       if (error) return error;
       try {
         const member = await enrolMember(env, refreshToken);
+        // Sync this rider straight away and rebuild the week. Waiting for the
+        // hourly cron would leave them staring at a board their rides are
+        // missing from, which reads as the feature being broken. A failure
+        // here is not fatal - the cron will pick them up - so it must not
+        // fail the enrolment itself.
+        try {
+          const { start, end } = getWeekRange(0);
+          await syncMemberWeek(env, member, start, end);
+          await buildWeekPayload(env, 0);
+        } catch (err) {
+          console.error(`First sync after enrolment failed: ${err.message}`);
+        }
         return jsonResponse({
           enrolled: true,
           athlete_id: member.athleteId,
