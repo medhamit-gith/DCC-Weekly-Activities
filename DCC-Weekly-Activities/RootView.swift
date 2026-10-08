@@ -488,7 +488,23 @@ struct WeeklyDashboardView: View {
         #if DEBUG
         print("[PostLogin] Starting initial data load... accessToken exists: \(stravaAPI.accessToken != nil)")
         #endif
-        
+
+        // Draw the last known week straight away. Without this the dashboard
+        // has nothing to show until BOTH the profile and the club data come
+        // back, so a cold launch on a slow connection is a long stare at an
+        // empty screen, and offline it never resolves at all. Fresh data
+        // replaces this as soon as it arrives.
+        if let cached = LaunchCache.load(weekOffset: selectedWeekOffset) {
+            athleteProfile = cached.profile
+            activities     = cached.current.sorted { $0.date > $1.date }
+            stats          = buildMemberStats(from: cached.current,
+                                              previousWeekActivities: cached.previous)
+            dateRange      = (start: cached.weekStart, end: cached.weekEnd)
+            #if DEBUG
+            print("[PostLogin] Restored launch cache — \(stats.count) members, saved \(cached.savedAt)")
+            #endif
+        }
+
         isLoading    = true
         errorMessage = nil
 
@@ -565,6 +581,20 @@ struct WeeklyDashboardView: View {
         NotificationCenter.default.post(name: NSNotification.Name("DCCDataLoadComplete"), object: nil)
 
         dateRange = (start: interval.start, end: interval.end)
+
+        // Keep the launch cache current, but never overwrite a useful snapshot
+        // with an empty one: a failed or empty fetch would otherwise throw away
+        // the only thing that makes the next cold launch instant.
+        if let profile = athleteProfile, !current.isEmpty {
+            LaunchCache.save(
+                profile: profile,
+                weekOffset: selectedWeekOffset,
+                weekStart: interval.start,
+                weekEnd: interval.end,
+                current: current,
+                previous: previous
+            )
+        }
 
         // An empty board is not an error: until club members opt in there is
         // genuinely nothing to show, and the opt-in banner explains that far
