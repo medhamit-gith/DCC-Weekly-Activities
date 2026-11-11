@@ -24,7 +24,7 @@ struct GlassMemberCard: View {
                     .foregroundStyle(.primary)
                 
                 HStack(spacing: 12) {
-                    Label("\(member.totalRides)", systemImage: "figure.run")
+                    Label("\(member.totalRides)", systemImage: "figure.outdoor.cycle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     

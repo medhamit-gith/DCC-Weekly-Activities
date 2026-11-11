@@ -625,7 +625,7 @@ struct MemberDetailView: View {
             statCard(
                 title: "Activities",
                 value: "\(memberStats.totalRides)",
-                icon: "figure.run",
+                icon: "figure.outdoor.cycle",
                 color: Color.purple
             )
         }
