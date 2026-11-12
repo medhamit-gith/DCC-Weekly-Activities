@@ -185,12 +185,26 @@ check('diagnostics surfaces the broken rider',
 
 // ── 5. Opting out removes the rider AND their rides ─────────────────────────
 console.log('\n5. Opting out');
+// The board is cached for an hour. Both this week's cache and an older week's
+// were built while the rider was enrolled, so both still name them.
+data = await (await call(e, '/club-data')).json();
+check('rider is on the cached board before leaving',
+  data.members.some(m => m.name === 'Jalaj M.'), JSON.stringify(data.members?.map(m => m.name)));
+await e.STRAVA_KV.put('club_data_week_2026-01-05', JSON.stringify({ members: [{ name: 'Jalaj M.' }] }));
 r = await postJSON(e, '/leave', { access_token: 'AT-RT-ok' });
 check('POST /leave returns 200', r.status === 200, `got ${r.status}`);
 check('member record deleted', (await e.STRAVA_KV.get('member:44')) === null);
 const leftovers = (await e.STRAVA_KV.list({ prefix: 'week:' })).keys
   .filter(k => k.name.endsWith(':44'));
 check('their stored rides deleted too', leftovers.length === 0, JSON.stringify(leftovers));
+// Read WITHOUT force, as the app does: the rider must be gone straight away,
+// not an hour later when the cache happens to expire.
+data = await (await call(e, '/club-data')).json();
+check('rider is off the board straight after leaving',
+  !data.members.some(m => m.name === 'Jalaj M.'), JSON.stringify(data.members?.map(m => m.name)));
+check('older cached weeks naming them are dropped too',
+  (await e.STRAVA_KV.get('club_data_week_2026-01-05')) === null);
+check('the rider left behind is still enrolled', (await e.STRAVA_KV.get('member:99')) !== null);
 r = await postJSON(e, '/leave', { access_token: 'not-a-token' });
 check('cannot opt out without a valid token', r.status === 401, `got ${r.status}`);
 
