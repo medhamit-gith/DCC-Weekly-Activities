@@ -97,6 +97,7 @@ function formatMovingTime(seconds) {
 // registry that used to stand in for missing dates is gone entirely.
 const MEMBER_PREFIX = "member:";
 const WEEK_PREFIX = "week:";
+const CLUB_CACHE_PREFIX = "club_data_week_";
 // Strava allows 2000 requests/day for the whole app. Syncing every member every
 // hour would blow through that, so each run takes a slice and the cursor moves
 // on - 20/hour covers 100 members roughly every five hours.
@@ -243,6 +244,13 @@ async function removeMember(env, athleteId) {
   for (const name of await listKeys(env, WEEK_PREFIX)) {
     if (name.endsWith(`:${athleteId}`)) await env.STRAVA_KV.delete(name);
   }
+  // The cached leaderboards were built while this rider was still enrolled and
+  // carry their name and rides. Left alone they keep being served for up to
+  // CACHE_TTL_SECONDS after the rider asked to be removed, so drop them; the
+  // next /club-data read rebuilds each week from the records that remain.
+  for (const name of await listKeys(env, CLUB_CACHE_PREFIX)) {
+    await env.STRAVA_KV.delete(name);
+  }
 }
 
 /** Read one member's rides for a week and store them under that week. */
@@ -332,7 +340,7 @@ async function buildWeekPayload(env, weekOffset) {
     members: rows
   };
   await env.STRAVA_KV.put(
-    `club_data_week_${isoWeekKey(weekStart)}`,
+    `${CLUB_CACHE_PREFIX}${isoWeekKey(weekStart)}`,
     JSON.stringify(payload),
     { expirationTtl: CACHE_TTL_SECONDS }
   );
@@ -820,7 +828,7 @@ https://amitrkamat.atlassian.net/browse/${jiraData.key}`
         );
       }
       const { start: weekStart } = getWeekRange(weekOffset);
-      const cacheKey = `club_data_week_${isoWeekKey(weekStart)}`;
+      const cacheKey = `${CLUB_CACHE_PREFIX}${isoWeekKey(weekStart)}`;
       const forceRefresh = url.searchParams.get("force") === "1";
       if (!forceRefresh) {
         const cached = await env.STRAVA_KV.get(cacheKey);
