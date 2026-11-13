@@ -272,5 +272,117 @@ activitiesFor = {};
 r = await postJSON(e, '/enrol', { refresh_token: 'RT-odd' });
 check('enrolment survives a failed first sync', r.status === 200, `got ${r.status}`);
 
+// ── 10. The week that just ended is read once more ─────────────────────────
+// The cron only syncs the current week. A ride done after a rider's last sync
+// on Sunday was therefore never picked up, and stayed off that week's board.
+console.log('\n10. Closing out last week');
+{
+  // The shared mock ignores after/before. This section is about which week a
+  // ride lands in, so honour them here the way Strava does.
+  const baseFetch = globalThis.fetch;
+  const requested = [];   // { after, before } per activities call
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (!u.includes('/athlete/activities')) return baseFetch(url, init);
+    const q = new URL(u).searchParams;
+    const after = Number(q.get('after')), before = Number(q.get('before'));
+    const all = await (await baseFetch(url, init)).json();
+    requested.push({ after, before });
+    return new Response(JSON.stringify(all.filter((a) => {
+      const t = new Date(a.start_date).getTime() / 1000;
+      return t > after && t < before;
+    })), { status: 200 });
+  };
+  const runCron = async (environment) => {
+    const pending = [];
+    await worker.scheduled({}, environment, { waitUntil: (p) => pending.push(p) });
+    await Promise.all(pending);
+  };
+  const lastMonday = new Date(monday.getTime() - 7 * 86400000);
+  const lastWeekKey = lastMonday.toISOString().slice(0, 10);
+  const mondaySec = monday.getTime() / 1000;
+  const lastWeekCalls = () => requested.filter((c) => c.before <= mondaySec + 1).length;
+
+  e = env();
+  athletes = {
+    'AT-RT-old': { id: 31, firstname: 'Dipak', lastname: 'Shah' },
+    'AT-RT-fresh': { id: 32, firstname: 'Neha', lastname: 'Rao' },
+  };
+  const sundayMorning = ride('Sunday club run', 60, 9000, 400, dayInWeek(-1, 9));
+  const sundayLate = ride('Sunday evening spin', 20, 3000, 50, dayInWeek(-1, 22));
+  activitiesFor = {
+    31: [sundayMorning, sundayLate, ride('Monday commute', 10, 1800, 20, dayInWeek(0, 1))],
+    32: [ride('Before opting in', 80, 10000, 300, dayInWeek(-2, 9)),
+         ride('This week', 15, 2400, 30, dayInWeek(0, 1))],
+  };
+  await postJSON(e, '/enrol', { refresh_token: 'RT-old' });
+  await postJSON(e, '/enrol', { refresh_token: 'RT-fresh' });
+
+  // Rider 31 has been enrolled for a while. Their last sync of last week ran
+  // on Sunday afternoon, before the evening ride, and the board built from it
+  // is still cached.
+  const veteran = JSON.parse(await e.STRAVA_KV.get('member:31'));
+  veteran.enrolledAt = new Date(monday.getTime() - 30 * 86400000).toISOString();
+  await e.STRAVA_KV.put('member:31', JSON.stringify(veteran));
+  await e.STRAVA_KV.put(`week:${lastWeekKey}:31`, JSON.stringify({
+    athleteId: 31, name: 'Dipak S.', syncedAt: dayInWeek(-1, 15),
+    activities: [{ name: 'Sunday club run', distance: 60, movingTime: 9000,
+      elevationGain: 400, averageSpeed: 24, type: 'Ride', sportType: 'Ride',
+      startDate: sundayMorning.start_date }],
+  }));
+  await e.STRAVA_KV.put(`club_data_week_${lastWeekKey}`, JSON.stringify({
+    memberCount: 1, totalActivities: 1,
+    members: [{ name: 'Dipak S.', rideCount: 1, totalDistance: 60 }],
+  }));
+  requested.length = 0;
+
+  await runCron(e);
+  let record = JSON.parse(await e.STRAVA_KV.get(`week:${lastWeekKey}:31`));
+  check('the late Sunday ride reaches last week',
+    record.activities.some((a) => a.name === 'Sunday evening spin'),
+    JSON.stringify(record.activities.map((a) => a.name)));
+  check('without pulling in this week\'s ride',
+    record.activities.length === 2, JSON.stringify(record.activities.map((a) => a.name)));
+  // Read WITHOUT force, as the app does when a rider swipes back a week.
+  data = await (await call(e, '/club-data?weekOffset=-1')).json();
+  check('last week\'s cached board is rebuilt with it',
+    data.members?.[0]?.totalDistance === 80, `${data.members?.[0]?.totalDistance}`);
+  check('a rider who opted in this week is not back-filled',
+    data.memberCount === 1 && (await e.STRAVA_KV.get(`week:${lastWeekKey}:32`)) === null,
+    JSON.stringify(data.members?.map((m) => m.name)));
+  data = await (await call(e, '/club-data')).json();
+  check('this week is still synced as before',
+    data.memberCount === 2 && data.totalActivities === 2, JSON.stringify(data.members?.map((m) => m.name)));
+  check('one extra Strava request, for the one rider it applies to',
+    lastWeekCalls() === 1, `${lastWeekCalls()}`);
+
+  await runCron(e);
+  check('and it is not repeated on the next hourly run',
+    lastWeekCalls() === 1, `${lastWeekCalls()}`);
+
+  // If last week cannot be read, the rider must be retried rather than marked
+  // done, and must still be reported as a failed sync.
+  e = env();
+  athletes = { 'AT-RT-flaky': { id: 33, firstname: 'Kiran', lastname: 'Das' } };
+  activitiesFor = { 33: [sundayLate] };
+  await postJSON(e, '/enrol', { refresh_token: 'RT-flaky' });
+  const flaky = JSON.parse(await e.STRAVA_KV.get('member:33'));
+  flaky.enrolledAt = veteran.enrolledAt;
+  await e.STRAVA_KV.put('member:33', JSON.stringify(flaky));
+  const filtering = globalThis.fetch;
+  globalThis.fetch = async (url, init) => (String(url).includes('/athlete/activities')
+    ? new Response('Service Unavailable', { status: 503 }) : filtering(url, init));
+  await runCron(e);
+  check('a failed read of last week is recorded',
+    !!JSON.parse(await e.STRAVA_KV.get('member:33')).lastError);
+  globalThis.fetch = filtering;
+  await runCron(e);
+  record = JSON.parse((await e.STRAVA_KV.get(`week:${lastWeekKey}:33`)) ?? '{}');
+  check('and retried on the next run',
+    record.activities?.length === 1, JSON.stringify(record.activities));
+
+  globalThis.fetch = baseFetch;
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

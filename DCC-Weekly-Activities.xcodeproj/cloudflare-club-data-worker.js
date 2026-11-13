@@ -356,14 +356,37 @@ async function syncBatch(env, weekOffset = 0) {
   const found = cursor ? members.findIndex((m) => String(m.athleteId) === cursor) : -1;
   const startIndex = found >= 0 ? found + 1 : 0;
 
+  // The cron only ever asks for the current week, so a ride done after a
+  // rider's last sync of a week (late on Sunday, or simply not uploaded until
+  // the evening) was never read again once Monday arrived: it stayed missing
+  // from that week's board for good. Each rider's first sync of a new week
+  // therefore reads the week that just ended once more. That is one extra
+  // Strava request per rider per week, and `closedWeek` records that it has
+  // been done so it is not repeated every hour.
+  const closing = weekOffset === 0 ? getWeekRange(-1) : null;
+  const closingKey = closing ? isoWeekKey(closing.start) : null;
+
   let synced = 0;
   let failed = 0;
+  let closed = 0;
   let last = null;
   const count = Math.min(MEMBERS_PER_SYNC, members.length);
   for (let i = 0; i < count; i++) {
     const member = members[(startIndex + i) % members.length];
     last = member.athleteId;
     try {
+      // Riders who opted in this week are left out: enrolment has only ever
+      // shared rides from the current week onwards, not the one before it.
+      if (
+        closing &&
+        member.closedWeek !== closingKey &&
+        member.enrolledAt &&
+        new Date(member.enrolledAt) < weekStart
+      ) {
+        await syncMemberWeek(env, member, closing.start, closing.end);
+        member.closedWeek = closingKey;
+        closed++;
+      }
       await syncMemberWeek(env, member, weekStart, weekEnd);
       member.lastSyncAt = (new Date()).toISOString();
       member.lastError = null;
@@ -376,8 +399,10 @@ async function syncBatch(env, weekOffset = 0) {
     await saveMember(env, member);
   }
   if (last !== null) await env.STRAVA_KV.put("sync_cursor", String(last));
+  // Last week's cached board predates the rides just picked up, so rebuild it.
+  if (closed > 0) await buildWeekPayload(env, -1);
   await buildWeekPayload(env, weekOffset);
-  return { enrolled: members.length, synced, failed };
+  return { enrolled: members.length, synced, failed, closed };
 }
 const CYCLING_SPORT_TYPES = new Set([
   "Ride",
