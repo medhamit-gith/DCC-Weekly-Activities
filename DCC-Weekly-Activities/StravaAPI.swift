@@ -111,7 +111,16 @@ final class StravaAPI {
 
     func restoreDemoMode()              { UserAuthService.shared.restoreDemoMode() }
     func restoreRefreshToken(_ t: String) { UserAuthService.shared.restoreRefreshToken(t) }
-    func logout()                       { UserAuthService.shared.logout() }
+    func logout() {
+        UserAuthService.shared.logout()
+#if os(iOS)
+        // SCRUM-85: the launch cache holds the signed-out rider's Strava
+        // profile and the week's rides. Left on disk it would be restored as
+        // the "last known week" for whoever signs in next on this device.
+        // iOS only: LaunchCache is not part of the tvOS target.
+        LaunchCache.clear()
+#endif
+    }
 
 #if os(iOS)
     func beginOAuth()                   { UserAuthService.shared.beginOAuth() }
