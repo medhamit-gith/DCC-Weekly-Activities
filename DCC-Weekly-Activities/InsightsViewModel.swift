@@ -215,6 +215,19 @@ final class InsightsViewModel {
         let elevationGap = leader.totalElevation - rider.totalElevation
         let rideCountGap = leader.totalRides - rider.totalRides
         
+        // SCRUM-89: what-if projections for the tips below, from the rider's own rides
+        let projection = RiderStats(
+            id: rider.memberName.replacingOccurrences(of: " ", with: "_"),
+            displayName: rider.memberName,
+            firstname: rider.memberName,
+            lastname: "",
+            activities: rider.rides
+        )
+        let ridesToClose = projection.averageDistanceKm > 0
+            ? Int(ceil(max(0, distanceGap) / projection.averageDistanceKm))
+            : 0
+        let oneMoreRide = shownWhatIf(WhatIfEngine.whatIfExtraRides(1, rider: projection))
+        
         // Find the largest gap
         let gaps: [(type: String, value: Double, metric: String)] = [
             ("distance", distanceGap, "km"),
@@ -235,7 +248,9 @@ final class InsightsViewModel {
                     headline: "Close the Distance Gap",
                     detail: "Add one longer ride to close the \(String(format: "%.1f", distanceGap))km gap with \(leader.memberName)",
                     gapBadge: "-\(String(format: "%.1f", distanceGap))km",
-                    whatIf: nil
+                    whatIf: (1...2).contains(ridesToClose)
+                        ? shownWhatIf(WhatIfEngine.whatIfExtraRides(ridesToClose, rider: projection))
+                        : oneMoreRide
                 ))
                 
             case "speed":
@@ -245,7 +260,7 @@ final class InsightsViewModel {
                     headline: "Boost Your Pace",
                     detail: "Maintain \(String(format: "%.1f", speedGap)) km/h faster to match \(leader.memberName)'s speed",
                     gapBadge: "-\(String(format: "%.1f", speedGap)) km/h",
-                    whatIf: nil
+                    whatIf: shownWhatIf(WhatIfEngine.whatIfFasterPace(extraKmh: min(speedGap, 2.0), rider: projection))
                 ))
                 
             case "elevation":
@@ -265,7 +280,7 @@ final class InsightsViewModel {
                     headline: "Ride More Often",
                     detail: "\(leader.memberName) leads with \(leader.totalRides) rides vs your \(rider.totalRides)",
                     gapBadge: "-\(rideCountGap) rides",
-                    whatIf: nil
+                    whatIf: shownWhatIf(WhatIfEngine.whatIfExtraRides(rideCountGap, rider: projection))
                 ))
                 
             default:
@@ -285,7 +300,7 @@ final class InsightsViewModel {
                     headline: "Increase Weekly Volume",
                     detail: "One extra \(String(format: "%.0f", distanceGap / Double(max(1, rideCountGap + 1))))km ride would help close the gap",
                     gapBadge: nil,
-                    whatIf: nil
+                    whatIf: oneMoreRide
                 ))
                 
             case "rides" where !tips.contains(where: { $0.icon == "🗓" }):
@@ -295,7 +310,7 @@ final class InsightsViewModel {
                     headline: "Add Consistency",
                     detail: "One extra ride this week moves you up the leaderboard",
                     gapBadge: nil,
-                    whatIf: nil
+                    whatIf: oneMoreRide
                 ))
                 
             default:
@@ -317,6 +332,13 @@ final class InsightsViewModel {
         }
         
         return Array(tips.prefix(2))
+    }
+    
+    /// A projection is only worth showing if it adds distance. The card prints
+    /// the gain to the nearest km, so anything smaller would read "+0km"
+    /// (a rider with no rides yet, or rides with no moving time).
+    private func shownWhatIf(_ result: WhatIfResult) -> WhatIfResult? {
+        result.distanceGain >= 0.5 ? result : nil
     }
 }
 
