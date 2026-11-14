@@ -42,12 +42,15 @@ struct WhatIfEngine {
     
     /// Projects impact of increasing average speed by X km/h
     static func whatIfFasterPace(extraKmh: Double, rider: RiderStats) -> WhatIfResult {
-        let currentTime = rider.totalMovingTimeHours
-        let projectedDistance = ((rider.averageSpeedKmh + extraKmh) * currentTime).safeValue
+        // Same hours in the saddle, extraKmh faster: the gain is exactly
+        // extraKmh x hours. (Projecting from averageSpeedKmh, the unweighted
+        // mean of per-ride speeds, does not reproduce the rider's real total,
+        // so the difference from it was not the gain.)
+        let distanceGain = (extraKmh * rider.totalMovingTimeHours).safeValue
         return WhatIfResult(
             scenario: "Riding \(String(format: "%.1f", extraKmh)) km/h faster",
-            projectedDistance: projectedDistance,
-            distanceGain: (projectedDistance - rider.totalDistanceKm).safeValue,
+            projectedDistance: (rider.totalDistanceKm + distanceGain).safeValue,
+            distanceGain: distanceGain,
             newRank: nil
         )
     }
